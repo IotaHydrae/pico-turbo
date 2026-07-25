@@ -45,6 +45,9 @@
 
 static void apply_voltage_rp2040(void)
 {
+#ifdef PICO_TURBO_VREG_VOLTAGE
+	vreg_set_voltage(PICO_TURBO_VREG_VOLTAGE);
+#else
 	if (TURBO_SYS_CLK_MHZ > 396) {
 		vreg_set_voltage(VREG_VOLTAGE_1_30);
 	} else if (TURBO_SYS_CLK_MHZ > 360) {
@@ -54,6 +57,7 @@ static void apply_voltage_rp2040(void)
 	} else {
 		vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
 	}
+#endif
 }
 
 #elif defined(PICO_RP2350)
@@ -67,6 +71,9 @@ static void apply_voltage_rp2350(void)
 	 */
 	vreg_disable_voltage_limit();
 
+#ifdef PICO_TURBO_VREG_VOLTAGE
+	vreg_set_voltage(PICO_TURBO_VREG_VOLTAGE);
+#else
 	/*
 	 * Voltage / frequency lookup for RP2350.
 	 * Choose the lowest voltage that supports the target clock.
@@ -85,6 +92,7 @@ static void apply_voltage_rp2350(void)
 		/* 150 MHz and below: default voltage (1.10 V) is sufficient. */
 		vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
 	}
+#endif
 }
 
 #endif /* PICO_RP2040 / PICO_RP2350 */

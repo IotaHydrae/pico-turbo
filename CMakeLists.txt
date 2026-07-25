@@ -18,6 +18,9 @@ endif()
 if(NOT DEFINED PICO_TURBO_FLASH_CLK_DIV)
     set(PICO_TURBO_FLASH_CLK_DIV "")
 endif()
+if(NOT DEFINED PICO_TURBO_VREG_VOLTAGE)
+    set(PICO_TURBO_VREG_VOLTAGE "")
+endif()
 
 # ===================================================================
 # Nothing to do — overclocking disabled
@@ -105,7 +108,16 @@ target_compile_definitions(pico_turbo PUBLIC
     PICO_EMBED_XIP_SETUP=1
 )
 
+if(NOT PICO_TURBO_VREG_VOLTAGE STREQUAL "")
+    target_compile_definitions(pico_turbo PUBLIC
+        PICO_TURBO_VREG_VOLTAGE=${PICO_TURBO_VREG_VOLTAGE})
+endif()
+
 # one-line summary
 math(EXPR _MHZ "${PICO_TURBO_SYS_CLK_KHZ} / 1000")
 math(EXPR _FLASH_MHZ "${PICO_TURBO_SYS_CLK_KHZ} / ${_DIV} / 1000")
-message(STATUS "pico-turbo: ${_MHZ} MHz, flash DIV ${_DIV} (${_FLASH_MHZ} MHz)")
+if(PICO_TURBO_VREG_VOLTAGE STREQUAL "")
+    message(STATUS "pico-turbo: ${_MHZ} MHz, flash DIV ${_DIV} (${_FLASH_MHZ} MHz)")
+else()
+    message(STATUS "pico-turbo: ${_MHZ} MHz, flash DIV ${_DIV} (${_FLASH_MHZ} MHz), voltage ${PICO_TURBO_VREG_VOLTAGE}")
+endif()
