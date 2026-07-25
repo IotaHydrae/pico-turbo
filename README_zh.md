@@ -38,19 +38,25 @@ int main(void) {
 |---|---|---|
 | `PICO_TURBO_SYS_CLK_KHZ` | *(空)* | 目标 CPU 频率，单位 kHz（如 `400000` 表示 400 MHz）。留空则不超频。 |
 | `PICO_TURBO_FLASH_CLK_DIV` | *(自动)* | Flash SPI 分频系数。留空则自动计算；遇到不稳定的 flash 芯片可手动指定。 |
+| `PICO_TURBO_VREG_VOLTAGE` | *(自动)* | 核心电压，如 `VREG_VOLTAGE_1_30`。留空则根据频率自动选择。 |
+
+RP2040 可用值：`VREG_VOLTAGE_DEFAULT`、`VREG_VOLTAGE_1_20`、`VREG_VOLTAGE_1_25`、`VREG_VOLTAGE_1_30`。
+RP2350 额外可用扩展范围（`VREG_VOLTAGE_1_35` … `VREG_VOLTAGE_3_30`）。
 
 ### 命令行传参
 
 ```bash
 cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 ..
 cmake -DPICO_TURBO_SYS_CLK_KHZ=512000 -DPICO_TURBO_FLASH_CLK_DIV=9 ..
+cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 -DPICO_TURBO_VREG_VOLTAGE=VREG_VOLTAGE_1_25 ..
 ```
 
 ### CMakeLists.txt 中设置
 
 ```cmake
 set(PICO_TURBO_SYS_CLK_KHZ 400000)
-set(PICO_TURBO_FLASH_CLK_DIV 4)           # 可选，手动覆盖
+set(PICO_TURBO_FLASH_CLK_DIV 4)                # 可选，手动覆盖
+set(PICO_TURBO_VREG_VOLTAGE VREG_VOLTAGE_1_25) # 可选，手动覆盖
 add_subdirectory(libs/pico-turbo)
 target_link_libraries(my_app pico_turbo)
 ```

@@ -38,19 +38,25 @@ That's it. If you don't set `PICO_TURBO_SYS_CLK_KHZ` (or leave it empty), the li
 |---|---|---|
 | `PICO_TURBO_SYS_CLK_KHZ` | *(empty)* | Target CPU clock in kHz (e.g. `400000` for 400 MHz). Empty = no overclock. |
 | `PICO_TURBO_FLASH_CLK_DIV` | *(auto)* | Flash SPI clock divider. Leave empty for automatic; set manually for finicky flash chips. |
+| `PICO_TURBO_VREG_VOLTAGE` | *(auto)* | Core voltage, e.g. `VREG_VOLTAGE_1_30`. Leave empty to auto-select from frequency. |
+
+Valid values for RP2040: `VREG_VOLTAGE_DEFAULT`, `VREG_VOLTAGE_1_20`, `VREG_VOLTAGE_1_25`, `VREG_VOLTAGE_1_30`.
+For RP2350 the extended range (`VREG_VOLTAGE_1_35` … `VREG_VOLTAGE_3_30`) is also available.
 
 ### Command-line
 
 ```bash
 cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 ..
 cmake -DPICO_TURBO_SYS_CLK_KHZ=512000 -DPICO_TURBO_FLASH_CLK_DIV=9 ..
+cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 -DPICO_TURBO_VREG_VOLTAGE=VREG_VOLTAGE_1_25 ..
 ```
 
 ### In CMakeLists.txt
 
 ```cmake
 set(PICO_TURBO_SYS_CLK_KHZ 400000)
-set(PICO_TURBO_FLASH_CLK_DIV 4)           # optional override
+set(PICO_TURBO_FLASH_CLK_DIV 4)                # optional override
+set(PICO_TURBO_VREG_VOLTAGE VREG_VOLTAGE_1_25) # optional override
 add_subdirectory(libs/pico-turbo)
 target_link_libraries(my_app pico_turbo)
 ```
