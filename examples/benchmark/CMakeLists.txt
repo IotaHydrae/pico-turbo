@@ -36,7 +36,7 @@ pico_sdk_init()
 # pico_turbo library (two directories up)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../.. ${CMAKE_BINARY_DIR}/pico_turbo)
 
-add_executable(benchmark main.c)
+add_executable(benchmark benchmark.c)
 target_link_libraries(benchmark pico_turbo pico_stdlib)
 
 if(COPY_TO_RAM)
