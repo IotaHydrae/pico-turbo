@@ -111,6 +111,24 @@ void pico_turbo_init(void);
 
 Call once at the very start of `main()`, before `stdio_init_all()` or any peripheral setup. When overclocking is disabled the function is empty — safe to leave the call in place for both stock and turbo builds.
 
+## Troubleshooting
+
+If the Pico fails to boot, hangs, or behaves erratically after overclocking:
+
+1. **Increase the flash divider.** The flash chip may not keep up at the auto-computed speed. Try a higher `PICO_TURBO_FLASH_CLK_DIV` to lower the flash clock:
+   ```bash
+   cmake -DPICO_TURBO_FLASH_CLK_DIV=6 ..
+   cmake -DPICO_TURBO_FLASH_CLK_DIV=9 ..   # if still unstable
+   ```
+2. **Run from SRAM.** When the flash simply cannot match the system clock, copy the entire firmware to SRAM at boot. This eliminates the XIP bottleneck entirely (at the cost of reduced available RAM):
+   ```bash
+   cmake -DCOPY_TO_RAM=ON ..
+   ```
+   Or in CMakeLists.txt:
+   ```cmake
+   pico_set_binary_type(your_app copy_to_ram)
+   ```
+
 ## ⚠️ Warning
 
 Overclocking increases power consumption and heat, and **may permanently damage your device**. Use at your own risk. The library is provided as-is with no warranty.

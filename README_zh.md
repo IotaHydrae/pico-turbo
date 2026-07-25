@@ -111,6 +111,24 @@ void pico_turbo_init(void);
 
 在 `main()` 最开始、`stdio_init_all()` 及任何外设初始化之前调用一次。不超频时该函数为空 — 可在默认频率和超频版本之间共用同一份代码。
 
+## 故障排查
+
+超频后若 Pico 无法启动、卡死或运行不稳定：
+
+1. **增大 flash 分频系数。** Flash 芯片可能跟不上自动计算的速度。尝试更大的 `PICO_TURBO_FLASH_CLK_DIV` 以降低 flash 工作频率：
+   ```bash
+   cmake -DPICO_TURBO_FLASH_CLK_DIV=6 ..
+   cmake -DPICO_TURBO_FLASH_CLK_DIV=9 ..   # 若仍不稳定
+   ```
+2. **从 SRAM 运行。** 当 flash 实在无法匹配系统时钟时，在启动时将整个固件拷贝到 SRAM 中执行。这能完全消除 XIP 瓶颈（代价是可用 RAM 减少）：
+   ```bash
+   cmake -DCOPY_TO_RAM=ON ..
+   ```
+   或在 CMakeLists.txt 中：
+   ```cmake
+   pico_set_binary_type(your_app copy_to_ram)
+   ```
+
 ## ⚠️ 警告
 
 超频会增加功耗和发热，**可能永久损坏你的设备**。使用风险自负。本库按原样提供，不作任何担保。
