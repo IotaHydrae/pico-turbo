@@ -1,5 +1,12 @@
 # pico_turbo benchmark example
 #
+# This is a standalone example — only build when invoked as the top-level
+# project, not when pico-turbo is pulled in via add_subdirectory().
+if(NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    return()
+endif()
+
+#
 # Build (stock):
 #   mkdir build && cd build && cmake .. && ninja
 #
