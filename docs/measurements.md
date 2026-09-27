@@ -174,6 +174,13 @@ the flash clock rising from 60 to 105 MHz underneath, so this load never leaves 
 XIP cache in this range.  Two cores at 420 MHz score 1417.30, i.e. 1.784x one
 core -- the same 1.78x the RP2350 boards show.
 
+`boards/pico_w.cmake` carries these numbers -- the platform ceiling, the 105 MHz
+flash ceiling and the three profiles (240/360/420 MHz at stock/1.20/1.30 V), each
+of which derives the divider the row above was measured at -- and was checked
+against this board rather than against itself: a build asking only for
+`-DPICO_BOARD=pico_w -DPICO_TURBO_PROFILE=extreme` came up at 420000 kHz measured,
+vreg sel 15 and a 105 MHz flash clock, and validated 794.39 iterations/sec.
+
 Soaked at 420 MHz with both cores, 20160 iterations each and a bootrom reboot
 between runs: 27 consecutive complete runs, every one validated, no errors, mean
 1417.301508 iterations/sec with a 0.0059% spread and every run's 28.449 s within

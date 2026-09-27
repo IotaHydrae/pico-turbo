@@ -203,7 +203,8 @@ XIP flash 时钟 = `sys_clk / PICO_FLASH_SPI_CLKDIV`，所以它会跟着核心�
 
 - **分频系数必须为偶数**，RP2040 和 RP2350 都一样（两边的 boot stage 2 都有同一句
   `#error PICO_FLASH_SPI_CLKDIV must be even`）
-- 上限**按板子给**：`boards/pico2.cmake` 用 60 MHz，RP2040 板子沿用 133 MHz 的 QSPI 接口上限
+- 上限**按板子给**：`boards/pico2.cmake` 用 60 MHz，`boards/pico_w.cmake` 用 105 MHz（实测值；
+  QSPI 接口自身极限是 133 MHz），没有自己 board 文件的 RP2040 板子才沿用 133 MHz 接口上限
 
 第二点不是细节。在这块 Pico 2 上实测：520 MHz 构建算出 DIV 4 —— 爬到顶端时 flash 130 MHz，
 315 MHz 时就已 78 MHz —— 芯片从那时起开始自检不符并硬故障，看起来**完全像是硅片频率上限**。

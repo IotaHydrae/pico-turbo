@@ -228,8 +228,9 @@ keeps flash under a ceiling:
 
 - **the divider must be even** on both RP2040 and RP2350 (the boot stage 2 of each
   has the same `#error PICO_FLASH_SPI_CLKDIV must be even`)
-- that ceiling is **per board**: `boards/pico2.cmake` uses 60 MHz, RP2040 boards the
-  133 MHz QSPI interface limit
+- that ceiling is **per board**: `boards/pico2.cmake` uses 60 MHz, `boards/pico_w.cmake`
+  105 MHz (measured; the QSPI interface's own limit is 133 MHz), and an RP2040 board
+  with no file of its own the 133 MHz interface limit
 
 That second point is not a detail. On a Pico 2 measured here, a 520 MHz build
 derived DIV 4 — 130 MHz of flash clock at the top of the ladder, 78 MHz at 315 MHz
