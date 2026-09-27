@@ -204,14 +204,29 @@ target_link_libraries(my_app pico_turbo)
 
 ## Flash Divider
 
-The XIP flash clock is `sys_clk / PICO_FLASH_SPI_CLKDIV`. The library auto-computes the smallest valid divider that keeps flash ≤ 133 MHz:
+The XIP flash clock is `sys_clk / PICO_FLASH_SPI_CLKDIV`, so it climbs with the core:
+the divider has to be derived from the highest frequency the build can reach, not
+from the one it starts at. The library computes the smallest valid divider that
+keeps flash under a ceiling:
 
-- **RP2040**: divider must be **even** (2, 4, 6, …)
-- **RP2350**: any integer ≥ 2
+- **the divider must be even** on both RP2040 and RP2350 (the boot stage 2 of each
+  has the same `#error PICO_FLASH_SPI_CLKDIV must be even`)
+- that ceiling is **per board**: `boards/pico2.cmake` uses 60 MHz, RP2040 boards the
+  133 MHz QSPI interface limit
 
-At extreme frequencies the simple formula may not be conservative enough — if you see instability, override manually:
+That second point is not a detail. On a Pico 2 measured here, a 520 MHz build
+derived DIV 4 — 130 MHz of flash clock at the top of the ladder, 78 MHz at 315 MHz
+— and the chip started failing its own self-check there and taking hard faults. It
+looked exactly like a silicon frequency limit. With DIV 10 (52 MHz) the same search
+climbed to 520 MHz, its configured ceiling, without a single hang; running the code
+from SRAM instead of flash (`-DPICO_COPY_TO_RAM=1`) gave the same result, which is
+what says the problem was the flash clock and not instruction fetch.
+
+So: keep the ceiling inside what your flash chip tolerates, and override when you
+know better — either the ceiling or the divider directly:
 
 ```bash
+cmake -DPICO_TURBO_FLASH_MAX_KHZ=55000 ..
 cmake -DPICO_TURBO_FLASH_CLK_DIV=9 ..
 ```
 

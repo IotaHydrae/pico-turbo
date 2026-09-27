@@ -54,9 +54,30 @@
 #endif
 
 /*: Where to stop climbing.  Keep this close to what you expect the part to do:
- *: probing far past it is how a chip ends up needing a power cycle. */
+ *: probing far past it is how a chip ends up needing a power cycle.  The default
+ *: is the ceiling the library was built with, because a step above that is not a
+ *: frequency the library will apply: it would be refused, and the trace would end
+ *: with a step that says nothing about the chip. */
 #ifndef TUNE_MAX_KHZ
-#define TUNE_MAX_KHZ 420000u
+#define TUNE_MAX_KHZ PICO_TURBO_MAX_CLK_KHZ
+#endif
+
+/*: Keep the search inside a voltage window.  Zero means "whatever the library's
+ *: table says", which is what a measurement of a chip you do not know yet wants;
+ *: a floor is what a search that has already been shown where the chip hangs
+ *: needs, so it climbs past that point with the voltage the chip does want. */
+#ifndef TUNE_MIN_VREG_SEL
+#define TUNE_MIN_VREG_SEL 0u
+#endif
+#ifndef TUNE_MAX_VREG_SEL
+#define TUNE_MAX_VREG_SEL 0u
+#endif
+
+/*: How many resets a wall is worth while looking for the ceiling.  Each one buys
+ *: one voltage step at the frequency the chip hung at, so a probe that wants the
+ *: real ceiling wants more than the two a normal boot would spend. */
+#ifndef TUNE_MAX_HANGS
+#define TUNE_MAX_HANGS 0u
 #endif
 
 /*: Final acceptance run per tier: long enough that a marginal configuration
@@ -138,6 +159,9 @@ int main(void)
 		.max_khz = TUNE_MAX_KHZ,
 		.step_khz = TUNE_STEP_KHZ,
 		.stress_ms = TUNE_STRESS_MS,
+		.min_vreg_sel = TUNE_MIN_VREG_SEL,
+		.max_vreg_sel = TUNE_MAX_VREG_SEL,
+		.max_hangs = TUNE_MAX_HANGS,
 	};
 	pico_turbo_config_t config, reference_config;
 	char board_id[3 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES];
@@ -159,9 +183,13 @@ int main(void)
 	watchdog_hw->scratch[TUNE_SCRATCH_FAILED_IDX] = 0;
 
 	printf("\n\n=== pico_turbo tune ===\n");
-	printf("searching %lu..%lu kHz in %lu kHz steps, %lu ms per candidate\n\n",
+	printf("searching %lu..%lu kHz in %lu kHz steps, %lu ms per candidate\n",
 	       (unsigned long)policy.base_khz, (unsigned long)policy.max_khz,
 	       (unsigned long)policy.step_khz, (unsigned long)policy.stress_ms);
+	printf("voltage window: sel %u..%u%s, %lu resets allowed at a wall\n\n",
+	       (unsigned)policy.min_vreg_sel, (unsigned)policy.max_vreg_sel,
+	       policy.min_vreg_sel ? " (forced)" : " (library table)",
+	       (unsigned long)policy.max_hangs);
 
 	config = pico_turbo_autotune(&policy);
 	n_steps = pico_turbo_trace(&steps);

@@ -187,14 +187,22 @@ target_link_libraries(my_app pico_turbo)
 
 ## Flash 分频器
 
-XIP flash 时钟 = `sys_clk / PICO_FLASH_SPI_CLKDIV`。库会自动计算保证 flash ≤ 133 MHz 的最小合法分频值：
+XIP flash 时钟 = `sys_clk / PICO_FLASH_SPI_CLKDIV`，所以它会跟着核心频率一起涨：分频值必须按
+**这个构建能到达的最高频率**来算，而不是按起始频率。库取"让 flash 不超过上限"的最小合法分频值：
 
-- **RP2040**：分频系数必须为**偶数**（2, 4, 6, …）
-- **RP2350**：任意 ≥ 2 的整数均可
+- **分频系数必须为偶数**，RP2040 和 RP2350 都一样（两边的 boot stage 2 都有同一句
+  `#error PICO_FLASH_SPI_CLKDIV must be even`）
+- 上限**按板子给**：`boards/pico2.cmake` 用 60 MHz，RP2040 板子沿用 133 MHz 的 QSPI 接口上限
 
-极限频率下，简单公式可能不够保守 — 若出现不稳定，手动指定分频值：
+第二点不是细节。在这块 Pico 2 上实测：520 MHz 构建算出 DIV 4 —— 爬到顶端时 flash 130 MHz，
+315 MHz 时就已 78 MHz —— 芯片从那时起开始自检不符并硬故障，看起来**完全像是硅片频率上限**。
+换成 DIV 10（52 MHz）后，同样的搜索一路爬到 520 MHz（该窗口的上限）、一次挂死都没有；把代码放进
+SRAM 跑（`-DPICO_COPY_TO_RAM=1`）结果相同，这就说明问题在 flash 时钟、不在取指。
+
+所以：把上限压在自己 flash 芯片能接受的范围里，知道自己在做什么时再覆盖 —— 覆盖上限或直接给分频值：
 
 ```bash
+cmake -DPICO_TURBO_FLASH_MAX_KHZ=55000 ..
 cmake -DPICO_TURBO_FLASH_CLK_DIV=9 ..
 ```
 
