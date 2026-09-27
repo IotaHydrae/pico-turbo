@@ -154,7 +154,9 @@ else()
     if(_FLASH_REQUIRES_EVEN)
         math(EXPR _REM "${_DIV} % 2")
         if(_REM GREATER 0)
-            message(FATAL_ERROR "pico-turbo: RP2040 requires even flash DIV")
+            message(FATAL_ERROR
+                "pico-turbo: this board requires an even flash DIV -- the boot "
+                "stage 2 of both RP2040 and RP2350 refuses an odd one")
         endif()
     endif()
 endif()
