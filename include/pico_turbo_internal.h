@@ -54,4 +54,9 @@ void pico_turbo_publish(const pico_turbo_config_t *config, bool tuned,
 /*: The trace of the last search; the tuner owns the array. */
 void pico_turbo_trace_add(uint32_t khz, uint16_t vreg_sel, uint8_t result);
 
+/*: Start a new trace.  A search describes itself, not every search this
+ *: power-up has run: appending would make "the trace of the last search" mean
+ *: "of all of them". */
+void pico_turbo_trace_reset(void);
+
 #endif /* PICO_TURBO_INTERNAL_H */

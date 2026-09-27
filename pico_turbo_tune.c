@@ -87,6 +87,11 @@ uint32_t pico_turbo_trace(const pico_turbo_step_t **steps)
 	return s_trace_len;
 }
 
+void pico_turbo_trace_reset(void)
+{
+	s_trace_len = 0;
+}
+
 static pico_turbo_autotune_t
 policy_defaults(const pico_turbo_autotune_t *policy)
 {
@@ -215,6 +220,7 @@ pico_turbo_config_t pico_turbo_autotune(const pico_turbo_autotune_t *policy)
 	}
 	watchdog_hw->scratch[TURBO_SCRATCH_MAGIC_IDX] = TURBO_SCRATCH_MAGIC;
 	watchdog_hw->scratch[TURBO_SCRATCH_FLIGHT_IDX] = 0;
+	pico_turbo_trace_reset();
 
 	/* A candidate was on trial when the chip went away: it hung. */
 	if (inflight != 0) {
@@ -370,6 +376,10 @@ pico_turbo_config_t pico_turbo_autotune(const pico_turbo_autotune_t *policy)
 }
 
 #else /* !PICO_TURBO_AUTOTUNE */
+
+void pico_turbo_trace_reset(void)
+{
+}
 
 /*: A build that does not search has no trace to report, but the call has to
  *: exist: the API is the same in every build, and an application that prints the
