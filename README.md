@@ -136,6 +136,23 @@ guess on the other.  Every tier is the fastest frequency that chip was found to
 run correctly at that core voltage, and it only contains tiers that survived the
 example's own acceptance run -- one that fails there is left out and reported.
 
+What a search's verdict means -- and what it does not:
+
+* Every candidate is checked by a *short* invariant test: a fixed workload whose
+  answers are compared against a reference, plus a region of the image read back
+  through XIP, for `PICO_TURBO_STRESS_MS` (30 ms by default) and again for
+  `TUNE_VERIFY_MS` when a tier is verified.  That catches a chip that is
+  computing wrong answers *now*; it is not a stability test.
+* Measured on a Pico 2 here, that screen was good to 520 MHz at 1.60 V: three
+  consecutive CoreMark runs at that setting validated their own results
+  (1465 iterations/sec, within 0.0001 % of each other).  It was **not** good to
+  570 MHz at the same voltage, which the search accepted and at which the same
+  CoreMark build could not even bring up its USB.
+* So: treat the top tier as a candidate rather than a configuration, and accept
+  it with a long, mixed workload -- `examples/coremark/` is exactly that, with
+  `-DCOREMARK_REPEAT=n` to soak it, and two cores if you want the worst case for
+  the regulator.
+
 Notes:
 
 * The build using the table must allow the frequencies in it:

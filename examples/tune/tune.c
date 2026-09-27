@@ -310,6 +310,14 @@ int main(void)
 	emit(" * core voltage.  It describes the chip it was measured on, not the board\n");
 	emit(" * model.\n");
 	emit(" *\n");
+	emit(" * What \"verified\" means here: a %lu ms soak of a fixed workload that\n",
+	     (unsigned long)TUNE_VERIFY_MS);
+	emit(" * checks the answers and reads a region of the image back through XIP.  It is\n");
+	emit(" * a screen, not a guarantee: on the chip this was written for, the search\n");
+	emit(" * accepted a tier that a twelve second CoreMark run could not start at, while\n");
+	emit(" * the tier below it passed three runs of the same.  Treat the top tier as the\n");
+	emit(" * candidate, and give it a long, mixed workload before shipping it.\n");
+	emit(" *\n");
 	emit(" *   pico_turbo_use_table(pico_turbo_tuned_configs, PICO_TURBO_TUNED_COUNT);\n");
 	emit(" *   pico_turbo_select(PICO_TURBO_TUNED_MAX);   // or SAFE, or any index\n");
 	emit(" *\n");
