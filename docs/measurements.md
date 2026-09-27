@@ -15,7 +15,7 @@ CoreMark results, which is where the stability claims come from, are in the
 | Luckfox Pico 2 | RP2350A rev 2, QFN60 | Puya PY25Q32HB, 4 MB QSPI | heatsink fitted; 2 A buck-boost on the 3V3 rail |
 | AirMech RP2040 (the PUD panel host) | RP2040 | its own part | the board the RP2040 defaults came from |
 | Official Pico 2 | RP2350A | its own part | measured: see below |
-| Official Pico W | RP2040 + wireless | -- | connected, not measured yet |
+| Official Pico W | RP2040 B2 | 2 MB (its own part) | measured: see below |
 
 ## Luckfox Pico 2 (RP2350A)
 
@@ -137,6 +137,51 @@ the board name.  This number cannot be keyed on the board name; measuring the
 divider at startup -- the self-check already reads a region of the image back, so
 the mechanism is there -- is the fix worth having.
 
+## Pico W (RP2040 B2, 2 MB flash)
+
+The RP2040 half of the same question -- are the tiers the chip's or the board's --
+asked on the one board here that came from the vendor.  CoreMark, one context,
+iterations scaled at 24 per MHz, divider 4 (105 MHz of flash clock at 420 MHz: the
+divider this library derives for an RP2040 board it has no profile for), every row
+`Correct operation validated` and every row's flash read back and compared first.
+
+| Clock | Voltage applied | Iterations/sec | per MHz | Flash clock |
+|---|---|---|---|---|
+| 125 MHz | 1.10 V (sel 11, stock) | 236.42 | 1.891 | 62.5 MHz (DIV 2, stock) |
+| 240 MHz | 1.10 V (sel 11) | 453.93 | 1.891 | 60 MHz |
+| 264 MHz | 1.10 V (sel 11) | 499.32 | 1.891 | 66 MHz |
+| 300 MHz | 1.20 V (sel 13) | 567.41 | 1.891 | 75 MHz |
+| 360 MHz | 1.20 V (sel 13) | 680.90 | 1.891 | 90 MHz |
+| 396 MHz | 1.25 V (sel 14) | 748.99 | 1.892 | 99 MHz |
+| 420 MHz | 1.30 V (sel 15) | 794.38 | 1.891 | 105 MHz |
+
+The voltage column is the library's table followed from the application's own
+state line, not from the build flags, and every step of it landed on a clock this
+board ran -- including 264 MHz, the row just under the 266 MHz boundary where the
+table drops back to stock voltage.  420 MHz at 1.30 V is the corner of the box the
+policy defines for RP2040 (the platform ceiling and the regulator's documented
+maximum, both reached at once), not a limit this board discovered.
+
+Against the AirMech board below, which a search fitted on its own: 260 MHz at sel
+11, 360 MHz at sel 13, 390 MHz at sel 14, 420 MHz at sel 15.  Two RP2040 boards,
+different vendors, different flash parts, different everything except the silicon,
+and the voltage each clock needs comes out the same.  That is the RP2040 version of
+the answer the two RP2350 boards gave: the tiers are the chip's, and the board is
+what decides how much *flash clock* can go with them.
+
+The score is linear at 1.891 iterations/sec per MHz across all seven points, with
+the flash clock rising from 60 to 105 MHz underneath, so this load never leaves the
+XIP cache in this range.  Two cores at 420 MHz score 1417.30, i.e. 1.784x one
+core -- the same 1.78x the RP2350 boards show.
+
+Soaked at 420 MHz with both cores, 20160 iterations each and a bootrom reboot
+between runs: 27 consecutive complete runs, every one validated, no errors, mean
+1417.301508 iterations/sec with a 0.0059% spread and every run's 28.449 s within
+1.7 ms of the next.  That tier is the corner of the box this library defines for
+RP2040 -- the platform's clock ceiling and the regulator's documented maximum
+reached at once -- and it holds under both cores for as long as this board was
+asked to hold it.
+
 ## AirMech RP2040 (the PUD panel host)
 
 Not a CoreMark board -- the numbers below are from the panel firmware, which is a
@@ -163,8 +208,9 @@ is well above what the RP2350 board above tolerates.
 
 ## Not measured yet
 
-- A Pico W, for the RP2040 side of the same questions: clock sweep and flash
-  ladder.
+- The Pico W above 420 MHz: 440 MHz locked the AirMech RP2040 up, so whether
+  the official board does the same is the RP2040 counterpart of the 570 MHz
+  question.
 - 546, 552, 558 and 564 MHz on the Luckfox board, and a dual-core soak above
   520 MHz on the official one.
 - The flash divider ladder on the Luckfox board (only "solid at 57 MHz, wrong at
