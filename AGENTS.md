@@ -42,6 +42,10 @@ cmake -S examples/tune -B build -DPICO_BOARD=pico2 \
 cmake --build build -j
 ```
 
+整块板子的"一键体检"在 coremark 仓库：`coremark/tools/probe.py --board <板名>`——时钟阶梯、
+flash 分频阶梯、双核、soak 全跑一遍，产出报告和一份可用的 `boards/<板名>.cmake`（本仓库
+`boards/pico_w.cmake` 就是这么来的）。接上探针即可，不需要按键。
+
 例子旋钮（都在 `examples/tune/CMakeLists.txt`）：`TUNE_BASE_KHZ`（设成等于上限就是单点
 测试）、`TUNE_MIN_VREG_SEL`/`TUNE_MAX_VREG_SEL`（电压窗口）、`TUNE_MAX_HANGS`（一次墙值
 几次复位）、`TUNE_VERIFY_MS` + `PICO_TURBO_STRESS_MS`（**这两个决定"通过"的含义**）。
@@ -92,7 +96,22 @@ cmake --build build -j
    这条命令的 shell 一起杀掉（实测三次，其中一次还把 runner 的 `-u` 参数漏掉、旧 reader
    没被杀掉，新 reader 于是 `Resource busy` 拿不到设备）。用 `pkill -f "名字[.]py"` 这种
    正则技巧，或者直接按 PID 杀。
-12. **调试器是定位工具，不要为了"纯 USB"而放弃它**：它直接给出卡在哪个函数（例如
+12. **调试器会话必须"真复位 + 释放核"，两句都要** ✗。实测（A/B/C 对照，同一 ELF、同一
+    板子，只改收尾三行）：
+    - **只有 `halt` 没有 `reset run`** ⇒ 写完什么都不会跑（核被 debug 的 halt 咬住）✗ ——
+      这是 probe 脚本第一版失败的直接原因。
+    - **有 `reset run`** ⇒ 正常出分 ✓。
+    - 另有一次带 `reset run` 仍不出分：PC `0xfffffffe`（double fault）、XIP 读出的数据像
+      **被移动过**（`00 b5 32 4b` 读成 `00 0b 53 24`，整条流右移一个 nibble），而写入和
+      `verify_image` 全部正常 ⇒ **回读 flash（`dump_image`）会把 SSI 留在非读模式，而
+      vectreset 修不回来**（RP2040 没有复位线时 `reset run` 只改 PC、不复位外设）。
+      实测能救回来的是**真芯片复位**：擦空 → 芯片自己进 BOOTSEL（`2e8a:0003`）→ picotool
+      写入+重启 ✓。快照差异见 `coremark/tools/probe.py` 的注释。
+    所以脚本的收尾是：清 `SCRATCH4` → 写看门狗 `CTRL` TRIGGER 位做真复位（RP2040
+    `0x40058000`、RP2350 `0x400D8000`，地址取自 SDK 的 `addressmap.h`）→ **`reset run`**。
+    （"看门狗这一句是否等价于擦空+picotool 那次真复位"，是从机制上推断的、尚未单独隔离验证；
+    已确证的是这套收尾在连续多个点上稳定工作。）
+13. **调试器是定位工具，不要为了"纯 USB"而放弃它**：它直接给出卡在哪个函数（例如
    `core_list_find` = 应用其实在跑；`isr_hardfault` = 真的挂了；PC 在 bootrom = 镜像没起来）。
 
 ## 当前已知边界（详见 docs/measurements.md）
