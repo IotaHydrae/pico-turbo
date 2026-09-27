@@ -185,16 +185,25 @@ target_compile_definitions(pico_turbo PUBLIC
     PICO_TURBO_ENABLED=1
     PICO_TURBO_SYS_CLK_KHZ=${PICO_TURBO_SYS_CLK_KHZ}
     PICO_FLASH_SPI_CLKDIV=${_DIV}
+    # The same number under a name of the library's own: PICO_FLASH_SPI_CLKDIV is
+    # the SDK's, and something else in a project can define it last.
+    PICO_TURBO_FLASH_DIV=${_DIV}
     PICO_EMBED_XIP_SETUP=1
 )
 if(PICO_TURBO_AUTOTUNE)
     target_compile_definitions(pico_turbo PUBLIC
         PICO_TURBO_AUTOTUNE=1
-        PICO_TURBO_MAX_CLK_KHZ=${PICO_TURBO_MAX_CLK_KHZ}
         PICO_TURBO_STEP_KHZ=${PICO_TURBO_STEP_KHZ}
         PICO_TURBO_STRESS_MS=${PICO_TURBO_STRESS_MS}
     )
 endif()
+# The highest frequency this build may apply, which is what the library's own
+# sanity check uses to tell a configuration from a corrupt record.  It has to be
+# defined in *every* build: a fixed-frequency build whose target is above the
+# header's fallback used to have its own target refused.
+target_compile_definitions(pico_turbo PUBLIC
+    PICO_TURBO_MAX_CLK_KHZ=${PICO_TURBO_MAX_CLK_KHZ}
+)
 
 if(NOT PICO_TURBO_VREG_VOLTAGE STREQUAL "")
     target_compile_definitions(pico_turbo PUBLIC

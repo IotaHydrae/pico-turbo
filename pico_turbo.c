@@ -32,7 +32,10 @@
 #include "pico_turbo_internal.h"
 
 /*: The lowest voltage each frequency range is known to work at.  The last entry
- *: has no upper bound and is the platform maximum. */
+ *: has no upper bound and is the platform maximum.  A build that pins the voltage
+ *: with PICO_TURBO_VREG_VOLTAGE does not derive it from a frequency, so it does
+ *: not carry the table at all. */
+#ifndef PICO_TURBO_VREG_VOLTAGE
 typedef struct {
 	uint32_t max_mhz;
 	enum vreg_voltage voltage;
@@ -57,6 +60,7 @@ static const turbo_vreg_step_t turbo_vreg_table[] = {
 
 #define TURBO_VREG_STEPS \
 	(sizeof(turbo_vreg_table) / sizeof(turbo_vreg_table[0]))
+#endif /* !PICO_TURBO_VREG_VOLTAGE */
 
 static pico_turbo_state_t s_state;
 static bool s_initialised;
@@ -110,12 +114,12 @@ void pico_turbo_publish(const pico_turbo_config_t *config, bool tuned,
 	s_state.usb_clk_khz = clock_get_hz(clk_usb) / 1000u;
 	s_state.usb_ok = (s_state.usb_clk_khz == 48000u);
 	s_state.flash_clk_khz = 0;
-#ifdef PICO_FLASH_SPI_CLKDIV
-	/* What the application believes the flash is clocked at.  The boot stage 2 has
+#ifdef PICO_TURBO_FLASH_DIV
+	/* What the library's own build says the flash is clocked at.  The boot stage 2 has
 	 * to carry the same divider -- the CMake side patches it when it has to
 	 * change it (see the comment there).  Reading a region of the image back in
 	 * pico_turbo_self_test() is what proves the divider is actually safe. */
-	s_state.flash_clk_khz = sys_khz / PICO_FLASH_SPI_CLKDIV;
+	s_state.flash_clk_khz = sys_khz / PICO_TURBO_FLASH_DIV;
 #endif
 	/* vreg_get_voltage() answers in the SDK's enum, which is the register
 	 * encoding: VREG_VOLTAGE_1_30 is 0b1111, not 1300. */
@@ -230,8 +234,8 @@ pico_turbo_state_t pico_turbo_state(void)
 	state.peri_clk_khz = clock_get_hz(clk_peri) / 1000u;
 	state.usb_clk_khz = clock_get_hz(clk_usb) / 1000u;
 	state.usb_ok = (state.usb_clk_khz == 48000u);
-#ifdef PICO_FLASH_SPI_CLKDIV
-	state.flash_clk_khz = state.sys_clk_khz / PICO_FLASH_SPI_CLKDIV;
+#ifdef PICO_TURBO_FLASH_DIV
+	state.flash_clk_khz = state.sys_clk_khz / PICO_TURBO_FLASH_DIV;
 #endif
 #endif
 
