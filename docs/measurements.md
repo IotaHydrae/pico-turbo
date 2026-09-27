@@ -160,7 +160,17 @@ state line, not from the build flags, and every step of it landed on a clock thi
 board ran -- including 264 MHz, the row just under the 266 MHz boundary where the
 table drops back to stock voltage.  420 MHz at 1.30 V is the corner of the box the
 policy defines for RP2040 (the platform ceiling and the regulator's documented
-maximum, both reached at once), not a limit this board discovered.
+maximum, both reached at once) -- but not this board's limit: with the ceiling
+raised out of the way (`-D_PLATFORM_MAX_KHZ`, which the board files now allow from
+the command line) the same board ran **440 MHz at 1.30 V** and validated 832.21
+iterations/sec, still 1.891 per MHz.
+
+That is worth reading next to the AirMech board below, whose 440 MHz *locked up*.
+So on RP2040 the two boards agree on the voltage each clock needs -- the tiers are
+the chip's -- and disagree about how far the top voltage goes: the official board
+took 440 MHz where the clone stopped.  The RP2350 pair did not behave like that
+(both stop at 564 passing, 570 failing), which is a reminder that "two boards stop
+in the same place" was two measurements and not a law.
 
 Against the AirMech board below, which a search fitted on its own: 260 MHz at sel
 11, 360 MHz at sel 13, 390 MHz at sel 14, 420 MHz at sel 15.  Two RP2040 boards,
