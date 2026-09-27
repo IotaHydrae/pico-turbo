@@ -27,6 +27,7 @@
 #include "hardware/clocks.h"
 #include "hardware/vreg.h"
 #include "pico.h"
+#include "pico/time.h"
 
 #include "pico_turbo_internal.h"
 
@@ -122,36 +123,95 @@ void pico_turbo_publish(const pico_turbo_config_t *config, bool tuned,
 	s_state.hangs = hangs;
 }
 
-bool pico_turbo_apply(const pico_turbo_config_t *config)
+/*: Is this a configuration the library is willing to apply at all?
+ *
+ * A table can come from anywhere -- a generated header, a flash record, an
+ * application hard-coding a number -- and the regulator controls are not the
+ * place to find out that it held nonsense: VREG_VOLTAGE_* values are register
+ * encodings, so an out-of-range one used to land in the low bits of the voltage
+ * select field and ask for a supply the core cannot run at.  Applied, that is
+ * not a wrong frequency, it is a chip that has to be power cycled: it was
+ * measured doing exactly that here, from a selection the example made out of a
+ * table it had been handed. */
+static bool config_valid(const pico_turbo_config_t *config)
 {
-	enum vreg_voltage voltage = (enum vreg_voltage)config->vreg_sel;
-	uint32_t sys_hz;
-
-	/* Above the platform maximum the limit has to be lifted first (RP2350; on
-	 * RP2040 nothing in this library's tables goes that high). */
-	if (voltage > VREG_VOLTAGE_MAX) {
-		vreg_disable_voltage_limit();
+	if (!config || config->khz == 0) {
+		return false;
 	}
 
-	/* Voltage before clock, always: the other order asks the core to run at a
-	 * frequency the regulator is not supplying yet. */
-	vreg_set_voltage(voltage);
-	pico_turbo_delay_us(PICO_TURBO_SETTLE_US);
-
-	if (clock_get_hz(clk_sys) / 1000u != config->khz) {
-		/* required=false on purpose: a frequency the PLL cannot hit exactly is
-		 * not an error, it is the normal case for a caller walking a ladder --
-		 * required=true panics instead of landing nearby.  The achieved value is
-		 * what the return value and the state report. */
-		(void)set_sys_clock_khz(config->khz, false);
+	if (config->khz > PICO_TURBO_MAX_CLK_KHZ) {
+		return false;
 	}
-	sys_hz = clock_get_hz(clk_sys);
+
+	if (config->vreg_sel > PICO_TURBO_MAX_VREG_SEL) {
+		return false;
+	}
+
+	return true;
+}
+
+static void set_clock(uint32_t khz)
+{
+	/* required=false on purpose: a frequency the PLL cannot hit exactly is not an
+	 * error, it is the normal case for a caller walking a ladder -- required=true
+	 * panics instead of landing nearby.  The achieved value is what the return
+	 * value and the state report. */
+	(void)set_sys_clock_khz(khz, false);
 
 	/* set_sys_clock_khz() re-points clk_peri at clk_sys itself; repeating it here
 	 * keeps the library's contract independent of that detail, and recomputes the
 	 * divider from the frequency that was actually reached. */
 	clock_configure_undivided(
-		clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, sys_hz);
+		clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
+		clock_get_hz(clk_sys));
+}
+
+bool pico_turbo_apply(const pico_turbo_config_t *config)
+{
+	enum vreg_voltage voltage;
+	uint32_t sys_hz;
+	uint32_t now_khz;
+	bool lower_clock_first;
+
+	if (!config_valid(config)) {
+		return false;
+	}
+
+	voltage = (enum vreg_voltage)config->vreg_sel;
+	now_khz = clock_get_hz(clk_sys) / 1000u;
+
+	/* Which comes first depends on which way the operating point is moving, and
+	 * both directions have a wrong way round that the chip punishes with a
+	 * lockup rather than with a wrong clock:
+	 *
+	 *  - going up, the supply has to be there before the core is asked to run
+	 *    faster than it can at the old one;
+	 *  - going down, the core has to come off the old frequency before the
+	 *    supply is cut to the new one, or it is briefly running a high frequency
+	 *    at a low voltage.
+	 *
+	 * Only ever doing it one way round works for a search, which climbs, and
+	 * fails for the first thing an application does after one: dropping from the
+	 * frequency the search ended on to a lower tier. */
+	lower_clock_first = config->khz < now_khz;
+
+	/* Above the platform maximum the limit has to be lifted first (RP2350; on
+	 * RP2040 the limit is hard-wired and this is a no-op). */
+	if (voltage > VREG_VOLTAGE_MAX) {
+		vreg_disable_voltage_limit();
+	}
+
+	if (lower_clock_first) {
+		set_clock(config->khz);
+	}
+
+	vreg_set_voltage(voltage);
+	pico_turbo_delay_us(PICO_TURBO_SETTLE_US);
+
+	if (!lower_clock_first && clock_get_hz(clk_sys) / 1000u != config->khz) {
+		set_clock(config->khz);
+	}
+	sys_hz = clock_get_hz(clk_sys);
 
 	return sys_hz == config->khz * 1000u;
 }
@@ -209,7 +269,10 @@ bool pico_turbo_select(uint32_t tier)
 	pico_turbo_config_t config = pico_turbo_tier(tier);
 	bool exact;
 
-	if (config.khz == 0) {
+	/* A tier that is not a configuration this build may apply is refused rather
+	 * than partly applied: the state is only published for a tier that was
+	 * actually attempted. */
+	if (!config_valid(&config)) {
 		return false;
 	}
 
@@ -221,8 +284,6 @@ bool pico_turbo_select(uint32_t tier)
 
 void pico_turbo_init(void)
 {
-	pico_turbo_config_t config;
-
 	if (s_initialised) {
 		return;
 	}
@@ -230,18 +291,33 @@ void pico_turbo_init(void)
 #ifdef PICO_TURBO_AUTOTUNE
 	/* The build asked for a search rather than a number. */
 	pico_turbo_autotune(NULL);
-
-	s_initialised = true;
-
-	return;
 #else
 #ifdef PICO_TURBO_BASE_CLK_KHZ
-	config.khz = PICO_TURBO_BASE_CLK_KHZ;
-	config.vreg_sel = pico_turbo_voltage_for_khz(PICO_TURBO_BASE_CLK_KHZ);
-	(void)pico_turbo_apply(&config);
-	pico_turbo_publish(&config, false, 0);
+	{
+		pico_turbo_config_t config;
+
+		config.khz = PICO_TURBO_BASE_CLK_KHZ;
+		config.vreg_sel =
+			pico_turbo_voltage_for_khz(PICO_TURBO_BASE_CLK_KHZ);
+		(void)pico_turbo_apply(&config);
+		pico_turbo_publish(&config, false, 0);
+	}
+#endif
 #endif
 	s_initialised = true;
-#endif
 }
 
+#ifndef PICO_TURBO_AUTOTUNE
+/*
+ * Without a search there is nothing to report; the getter exists either way so a
+ * caller does not have to care which build it links against.
+ */
+uint32_t pico_turbo_trace(const pico_turbo_step_t **steps)
+{
+	static const pico_turbo_step_t empty[1];
+
+	*steps = empty;
+
+	return 0;
+}
+#endif /* !PICO_TURBO_AUTOTUNE */

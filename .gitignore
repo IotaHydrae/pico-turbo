@@ -3,3 +3,4 @@ build_*/
 .claude/
 .cache/
 build-*/
+/test/host/test_turbo
