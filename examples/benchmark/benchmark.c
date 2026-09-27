@@ -127,22 +127,68 @@ int main(void)
 	printf("============================================\n\n");
 
 	/* --- 4. Clock info -------------------------------------------- */
-#ifdef PICO_TURBO_ENABLED
-	printf("Overclocking  : ENABLED\n");
-	printf("Target clock  : %lu kHz  (%lu MHz)\n",
-	       (uint32_t)PICO_TURBO_SYS_CLK_KHZ,
-	       (uint32_t)(PICO_TURBO_SYS_CLK_KHZ / 1000u));
-#else
-	printf("Overclocking  : DISABLED (stock)\n");
-#endif
+	/* What the library reports, and what the hardware frequency counter
+	 * measures -- printing both is what makes a mismatched target visible. */
+	pico_turbo_state_t st = pico_turbo_state();
+
+	printf("Overclocking  : %s\n",
+	       st.enabled ? "ENABLED" : "DISABLED (stock)");
+	if (st.enabled) {
+		printf("Target clock  : %lu kHz  (%lu MHz) -> %s\n",
+		       (uint32_t)st.requested_khz,
+		       (uint32_t)(st.requested_khz / 1000u),
+		       st.reached ? "reached" : "NOT REACHED (approximation)");
+	}
+	if (st.tuned) {
+		printf("Auto-tuned    : yes, %lu hangs during the search\n",
+		       (uint32_t)st.hangs);
+	}
 
 	uint32_t actual_khz = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
 	printf("Actual clock  : %lu kHz  (%lu MHz)\n", actual_khz,
 	       actual_khz / 1000u);
+	printf("Peripheral    : %lu kHz\n", (uint32_t)st.peri_clk_khz);
+	printf("USB           : %lu kHz%s\n", (uint32_t)st.usb_clk_khz,
+	       st.usb_clk_khz == 48000u ? "" :
+					  "   <-- USB needs exactly 48 MHz");
+	/* VREG_VOLTAGE_* is the register encoding; on the RP2040 the ladder starts
+	 * at 550 mV and steps by 50 mV, so sel 15 is the 1.30 V maximum. */
+#if PICO_RP2040
+	printf("Core voltage  : sel %u (VREG_VOLTAGE_*), = %u mV\n",
+	       (unsigned)st.vreg_sel, 550u + 50u * (unsigned)st.vreg_sel);
+#else
+	printf("Core voltage  : sel %u (VREG_VOLTAGE_*)\n",
+	       (unsigned)st.vreg_sel);
+#endif
 
 	uint32_t flash_khz = actual_khz / PICO_FLASH_SPI_CLKDIV;
-	printf("Flash clock   : %lu kHz  (%lu MHz, DIV %d)\n\n",
-	       flash_khz, flash_khz / 1000u, PICO_FLASH_SPI_CLKDIV);
+	printf("Flash clock   : %lu kHz  (%lu MHz, DIV %d, library says %lu)\n\n",
+	       flash_khz, flash_khz / 1000u, PICO_FLASH_SPI_CLKDIV,
+	       (uint32_t)st.flash_clk_khz);
+
+	/* --- 4b. What a search tried (only with PICO_TURBO_AUTOTUNE) ----- */
+	{
+		const pico_turbo_step_t *steps;
+		uint32_t n = pico_turbo_trace(&steps);
+
+		if (n) {
+			printf("Search trace  : %lu configurations\n",
+			       (uint32_t)n);
+			for (uint32_t i = 0; i < n; i++) {
+				static const char *what[] = {
+					"stable", "failed", "HUNG   ", "skipped"
+				};
+
+				printf("  %2lu  %6lu kHz  sel %2u  %s\n",
+				       (uint32_t)i, (uint32_t)steps[i].khz,
+				       (unsigned)steps[i].vreg_sel,
+				       what[steps[i].result <= 3 ?
+						    steps[i].result :
+						    1]);
+			}
+			printf("\n");
+		}
+	}
 
 	/* --- 5. QMI debug registers (RP2350 only, keep for diagnostics) -- */
 #if PICO_RP2350

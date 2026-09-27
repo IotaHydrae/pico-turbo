@@ -9,6 +9,10 @@
 # ── Board profile (recommended) ──
 #   cmake -DPICO_BOARD=pico2 -DPICO_TURBO_PROFILE=turbo ..
 #
+# ── Auto-tuning (recommended for unknown silicon) ──
+#   cmake -DPICO_BOARD=pico -DPICO_TURBO_SYS_CLK_KHZ=125000 -DPICO_TURBO_AUTOTUNE=1 ..
+#   (searches from 125 MHz up to the platform maximum; see README)
+#
 # ── Manual frequency ──
 #   cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 ..
 #   cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 -DPICO_TURBO_FLASH_CLK_DIV=6 ..
@@ -27,6 +31,23 @@ endif()
 if(NOT DEFINED PICO_TURBO_VREG_VOLTAGE)
     set(PICO_TURBO_VREG_VOLTAGE "")
 endif()
+# Ceiling the automatic flash divider keeps the XIP clock under.  133 MHz is the
+# RP2040/RP2350 limit for the QSPI interface; a slow flash chip may need less, in
+# which case set PICO_TURBO_FLASH_CLK_DIV directly.
+if(NOT DEFINED PICO_TURBO_FLASH_MAX_KHZ)
+    set(PICO_TURBO_FLASH_MAX_KHZ 133000)
+endif()
+# Runtime search for the best frequency/voltage instead of one fixed point.
+# PICO_TURBO_SYS_CLK_KHZ becomes the frequency to start from then.
+if(NOT DEFINED PICO_TURBO_AUTOTUNE)
+    set(PICO_TURBO_AUTOTUNE 0)
+endif()
+if(NOT DEFINED PICO_TURBO_STEP_KHZ)
+    set(PICO_TURBO_STEP_KHZ 5000)
+endif()
+if(NOT DEFINED PICO_TURBO_STRESS_MS)
+    set(PICO_TURBO_STRESS_MS 30)
+endif()
 
 # ===================================================================
 # Load board config  (sets platform constraints + profile overrides)
@@ -38,6 +59,23 @@ if(DEFINED PICO_BOARD)
     if(EXISTS "${_BOARD_FILE}")
         include("${_BOARD_FILE}")
     endif()
+endif()
+
+# How high the *search* may go, i.e. the frequency the flash divider has to be
+# safe for: the divider is a build-time constant baked into the boot stage 2, and
+# computing it for the starting frequency instead would leave the flash running
+# too fast as soon as a candidate above that frequency passes.
+if(NOT DEFINED PICO_TURBO_MAX_CLK_KHZ)
+    if(PICO_TURBO_AUTOTUNE AND DEFINED _PLATFORM_MAX_KHZ)
+        set(PICO_TURBO_MAX_CLK_KHZ ${_PLATFORM_MAX_KHZ})
+    else()
+        set(PICO_TURBO_MAX_CLK_KHZ ${PICO_TURBO_SYS_CLK_KHZ})
+    endif()
+endif()
+if(PICO_TURBO_AUTOTUNE AND PICO_TURBO_MAX_CLK_KHZ LESS PICO_TURBO_SYS_CLK_KHZ)
+    message(FATAL_ERROR
+        "pico-turbo: PICO_TURBO_MAX_CLK_KHZ (${PICO_TURBO_MAX_CLK_KHZ}) is below the "
+        "starting frequency PICO_TURBO_SYS_CLK_KHZ (${PICO_TURBO_SYS_CLK_KHZ})")
 endif()
 
 # Fallback: auto-detect platform constraints if no board config was loaded.
@@ -63,9 +101,14 @@ endif()
 # ===================================================================
 
 if(PICO_TURBO_SYS_CLK_KHZ STREQUAL "")
-    add_library(pico_turbo STATIC pico_turbo.c)
+    # No target frequency: pico_turbo_init() does nothing.  The mechanism
+    # (pico_turbo_apply()) and the self-check are still there for callers that
+    # want them, so the sources are built either way.
+    add_library(pico_turbo STATIC pico_turbo.c pico_turbo_selftest.c
+                                pico_turbo_tune.c)
     target_include_directories(pico_turbo PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
-    target_link_libraries(pico_turbo PUBLIC pico_stdlib hardware_clocks hardware_vreg)
+    target_link_libraries(pico_turbo PUBLIC pico_stdlib hardware_clocks
+                                             hardware_vreg hardware_watchdog)
     message(STATUS "pico-turbo: disabled (stock clocks)")
     return()
 endif()
@@ -79,8 +122,10 @@ if(PICO_TURBO_SYS_CLK_KHZ GREATER _PLATFORM_MAX_KHZ)
 endif()
 
 # --- flash divider: auto or manual ---
+# It has to hold for the whole range a search may walk, not just for its start.
+set(_FLASH_TOP_KHZ ${PICO_TURBO_MAX_CLK_KHZ})
 if(PICO_TURBO_FLASH_CLK_DIV STREQUAL "")
-    math(EXPR _DIV "(${PICO_TURBO_SYS_CLK_KHZ} + 132999) / 133000")
+    math(EXPR _DIV "(${_FLASH_TOP_KHZ} + ${PICO_TURBO_FLASH_MAX_KHZ} - 1) / ${PICO_TURBO_FLASH_MAX_KHZ}")
     if(_DIV LESS 2)
         set(_DIV 2)
     endif()
@@ -103,24 +148,45 @@ else()
     endif()
 endif()
 
-# --- bump boot2 flash divider if needed ---
-if(TARGET bs2_default AND _DIV GREATER _BOOT2_DEFAULT_DIV)
-    target_compile_definitions(bs2_default PRIVATE PICO_FLASH_SPI_CLKDIV=${_DIV})
+# --- boot2 flash divider ---
+# The divider has to be correct from the first XIP access, before main() runs, so
+# it belongs to the boot stage 2 and not to anything this library does at runtime.
+# A divider *lower* than the board's default matters too: leaving boot2 at 4 while
+# the application uses 2 clocks the flash at half of what it could take.
+if(TARGET bs2_default)
+    if(NOT _DIV EQUAL _BOOT2_DEFAULT_DIV)
+        target_compile_definitions(bs2_default PRIVATE PICO_FLASH_SPI_CLKDIV=${_DIV})
+    endif()
+else()
+    message(WARNING
+        "pico-turbo: no bs2_default target -- the boot stage 2 keeps its default "
+        "flash divider (${_BOOT2_DEFAULT_DIV}), so XIP will run at "
+        "${_FLASH_TOP_KHZ}/${_BOOT2_DEFAULT_DIV} kHz. Call "
+        "pico_sdk_init() before add_subdirectory(pico-turbo).")
 endif()
 
 # ===================================================================
 # Build the library
 # ===================================================================
 
-add_library(pico_turbo STATIC pico_turbo.c)
+add_library(pico_turbo STATIC pico_turbo.c pico_turbo_selftest.c pico_turbo_tune.c)
 target_include_directories(pico_turbo PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
-target_link_libraries(pico_turbo PUBLIC pico_stdlib hardware_clocks hardware_vreg)
+target_link_libraries(pico_turbo PUBLIC pico_stdlib hardware_clocks hardware_vreg
+                                         hardware_watchdog)
 target_compile_definitions(pico_turbo PUBLIC
     PICO_TURBO_ENABLED=1
     PICO_TURBO_SYS_CLK_KHZ=${PICO_TURBO_SYS_CLK_KHZ}
     PICO_FLASH_SPI_CLKDIV=${_DIV}
     PICO_EMBED_XIP_SETUP=1
 )
+if(PICO_TURBO_AUTOTUNE)
+    target_compile_definitions(pico_turbo PUBLIC
+        PICO_TURBO_AUTOTUNE=1
+        PICO_TURBO_MAX_CLK_KHZ=${PICO_TURBO_MAX_CLK_KHZ}
+        PICO_TURBO_STEP_KHZ=${PICO_TURBO_STEP_KHZ}
+        PICO_TURBO_STRESS_MS=${PICO_TURBO_STRESS_MS}
+    )
+endif()
 
 if(NOT PICO_TURBO_VREG_VOLTAGE STREQUAL "")
     target_compile_definitions(pico_turbo PUBLIC
@@ -129,8 +195,12 @@ endif()
 
 # one-line summary
 math(EXPR _MHZ "${PICO_TURBO_SYS_CLK_KHZ} / 1000")
-math(EXPR _FLASH_MHZ "${PICO_TURBO_SYS_CLK_KHZ} / ${_DIV} / 1000")
-if(NOT PICO_TURBO_VREG_VOLTAGE STREQUAL "")
+math(EXPR _FLASH_MHZ "${_FLASH_TOP_KHZ} / ${_DIV} / 1000")
+if(PICO_TURBO_AUTOTUNE)
+    message(STATUS "pico-turbo: search ${PICO_TURBO_SYS_CLK_KHZ}..${PICO_TURBO_MAX_CLK_KHZ} kHz "
+                   "in ${PICO_TURBO_STEP_KHZ} kHz steps, ${PICO_TURBO_STRESS_MS} ms per candidate; "
+                   "flash DIV ${_DIV} (${_FLASH_MHZ} MHz)")
+elseif(NOT PICO_TURBO_VREG_VOLTAGE STREQUAL "")
     message(STATUS "pico-turbo: ${_MHZ} MHz, flash DIV ${_DIV} (${_FLASH_MHZ} MHz), ${PICO_TURBO_VREG_VOLTAGE}")
 elseif(DEFINED PICO_BOARD AND NOT PICO_TURBO_PROFILE STREQUAL "")
     message(STATUS "pico-turbo: ${PICO_BOARD}/${PICO_TURBO_PROFILE} — ${_MHZ} MHz, flash DIV ${_DIV} (${_FLASH_MHZ} MHz)")

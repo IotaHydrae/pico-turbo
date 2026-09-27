@@ -2,3 +2,4 @@ build/
 build_*/
 .claude/
 .cache/
+build-*/
