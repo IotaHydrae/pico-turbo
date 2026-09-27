@@ -144,6 +144,19 @@ is well above what the RP2350 board above tolerates.
   pair can fail, leaving the chip stopped.  The console is the channel that does
   not disturb the measurement; a debug reset after reading is the least bad
   alternative.
+- **Verify one point end to end before looping.**  Build it, read the flash back
+  and compare, and read the state line the run prints.  A batch started before the
+  single-point flow is known to work is minutes of waiting for a failure the first
+  point would have shown immediately: that happened twice here, once when a whole
+  official-Pico-2 sweep died in the flashing step and once when a ladder point left
+  the board locked up.  Put an unreachable-frequency check in front of the loop
+  too, because three minutes per point is an expensive way to learn that the PLL
+  cannot hit a number.
+- **A build whose flash divider is too fast can brick a board past what software
+  can fix.**  The divider lives in boot stage 2, so every reset re-runs it and
+  fails the same way: on an official Pico 2, DIV 4 at 520 MHz (a 130 MHz flash
+  clock) left the core in lockup, unrescuable by any debugger reset, and it needed
+  the BOOTSEL button.  Keep the button reachable when testing the ladder.
 - **The watchdog scratch registers survive a debug reset but not the rescue-config
   reset**, so a recovery that uses the latter also throws away the search's memory
   of what hung.
