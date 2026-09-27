@@ -87,11 +87,29 @@ its highest search-accepted tier), so on this evidence the ~565-570 MHz edge is
 the silicon rather than the board: two boards from different vendors, different
 flash parts and different regulators, stop in the same place.
 
-The flash ladder has one point so far: a 520 MHz build with
-`-DPICO_TURBO_FLASH_CLK_DIV=4` (a 130 MHz flash clock) locks this board up -- the
-core was found at PC 0xeffffffe -- while DIV 10 (52 MHz) runs the same benchmark
-happily.  DIV 6 (86.7 MHz) and DIV 8 (65 MHz) are the points that would locate the
-ceiling, and the lockup stopped the walk before they ran.
+The flash ladder on this board: a fixed 520 MHz core at 1.60 V, each point
+written and read back before it was run.
+
+| Divider | Flash clock | Result |
+|---|---|---|
+| 4 | 130 MHz | locks the chip up (PC 0xeffffffe); only the BOOTSEL button brings it back |
+| 6 | 86.7 MHz | validated, 1465.39 iterations/sec |
+| 8 | 65 MHz | validated, 1465.39 |
+| 10 | 52 MHz | validated, 1465.38 |
+
+So this board's flash ceiling is between 86.7 and 130 MHz, while the Luckfox board
+above failed at 78.75 MHz and was solid at 57 MHz.  Two RP2350A boards, the same
+chip revision, and the flash ceiling differs by more than a factor of two: it is
+the board's flash part and layout, not the QSPI interface.  (Which is also why the
+question "why is the RP2350's flash slower than the RP2040's" was the wrong
+question -- the comparison that produced it was between two boards from different
+vendors, and the chips were never the variable.)
+
+That also means the per-board default (60 MHz for `PICO_BOARD=pico2`) is
+conservative for an official Pico 2 and necessary for a clone, and clones share
+the board name.  This number cannot be keyed on the board name; measuring the
+divider at startup -- the self-check already reads a region of the image back, so
+the mechanism is there -- is the fix worth having.
 
 ## AirMech RP2040 (the PUD panel host)
 
