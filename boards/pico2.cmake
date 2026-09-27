@@ -8,7 +8,12 @@
 #   turbo   — 366 MHz, 1.20 V,       DIV=4  (flash  91 MHz)
 #   extreme — 512 MHz, 1.60 V,       DIV=9  (flash  57 MHz)
 
-set(_PLATFORM_MAX_KHZ 520000)
+# The highest frequency the library will let a build ask for.  Measured on a
+# Pico 2 here: 570 MHz at 1.60 V passes a self-check and CoreMark validates
+# its own results there, 600 MHz at 1.60 V hangs, so this is the ceiling the
+# silicon was found to have with room to spare -- it is not a promise about
+# any other board's.
+set(_PLATFORM_MAX_KHZ 600000)
 # Measured on a Pico 2 here: with the divider derived from 133 MHz (DIV 4,
 # so 78 MHz of flash clock at 315 MHz) the chip computed wrong answers and
 # locked up; at 52 MHz it climbed to 570 MHz without a single hang.  The
