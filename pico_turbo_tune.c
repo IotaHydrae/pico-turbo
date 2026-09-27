@@ -44,6 +44,8 @@
 #define TURBO_SCRATCH_BEST_IDX 2u /* (khz << 8) | sel of the best that passed */
 #define TURBO_SCRATCH_HANGS_IDX \
 	3u /* watchdog resets this power-up has caused */
+/*: Spare slot: where a resume decided to start, for a debugger to read back. */
+#define TURBO_SCRATCH_RESUME_IDX 6u
 
 /*: Frequency step when the caller does not say.  The step only has to be fine
  *: enough to land on, or just past, every frequency the PLL can produce: a
@@ -102,6 +104,7 @@ policy_defaults(const pico_turbo_autotune_t *policy)
 		.stress_ms = PICO_TURBO_STRESS_MS,
 		.min_vreg_sel = 0,
 		.max_vreg_sel = PICO_TURBO_MAX_VREG_SEL,
+		.max_hangs = PICO_TURBO_MAX_HANGS,
 	};
 
 	if (policy) {
@@ -122,6 +125,9 @@ policy_defaults(const pico_turbo_autotune_t *policy)
 		}
 		if (policy->max_vreg_sel) {
 			p.max_vreg_sel = policy->max_vreg_sel;
+		}
+		if (policy->max_hangs) {
+			p.max_hangs = policy->max_hangs;
 		}
 	}
 
@@ -210,6 +216,8 @@ pico_turbo_config_t pico_turbo_autotune(const pico_turbo_autotune_t *policy)
 	uint32_t stored_best = 0;
 	uint32_t hangs = 0;
 	uint32_t inflight = 0;
+	uint32_t hung_khz = 0;
+	uint16_t hung_sel = 0;
 	uint32_t golden;
 
 	if (watchdog_hw->scratch[TURBO_SCRATCH_MAGIC_IDX] ==
@@ -222,11 +230,14 @@ pico_turbo_config_t pico_turbo_autotune(const pico_turbo_autotune_t *policy)
 	watchdog_hw->scratch[TURBO_SCRATCH_FLIGHT_IDX] = 0;
 	pico_turbo_trace_reset();
 
-	/* A candidate was on trial when the chip went away: it hung. */
+	/* A candidate was on trial when the chip went away: it hung.  Where it hung
+	 * is the interesting part -- that frequency is this chip's ceiling at the
+	 * voltage it was given, and the answer is to come back to it with more
+	 * voltage, not to stop at the configuration below it. */
 	if (inflight != 0) {
-		pico_turbo_trace_add(inflight >> 8,
-				     (uint16_t)(inflight & 0xffu),
-				     PICO_TURBO_STEP_HANG);
+		hung_khz = inflight >> 8;
+		hung_sel = (uint16_t)(inflight & 0xffu);
+		pico_turbo_trace_add(hung_khz, hung_sel, PICO_TURBO_STEP_HANG);
 		hangs++;
 		watchdog_hw->scratch[TURBO_SCRATCH_HANGS_IDX] = hangs;
 	}
@@ -247,7 +258,18 @@ pico_turbo_config_t pico_turbo_autotune(const pico_turbo_autotune_t *policy)
 
 	/* Start from what an earlier run proved, unless the caller asked for its own
 	 * search (in which case it has its own idea of where to begin). */
-	if (policy == NULL && (stored_best >> 8) >= p.base_khz) {
+	if (hung_khz >= p.base_khz + p.step_khz) {
+		/* Come back to the frequency that hung, one voltage step up.  The ladder
+		 * resumes one step below it, so its first candidate is that frequency
+		 * again -- at more voltage, which is the only thing that can get past
+		 * it.  voltage_floor()'s never-below carries that voltage into the rest
+		 * of the climb. */
+		config.khz = hung_khz - p.step_khz;
+		config.vreg_sel = hung_sel;
+		if (config.vreg_sel < p.max_vreg_sel) {
+			config.vreg_sel++;
+		}
+	} else if (policy == NULL && (stored_best >> 8) >= p.base_khz) {
 		config.khz = stored_best >> 8;
 		config.vreg_sel = (uint16_t)(stored_best & 0xffu);
 	} else {
@@ -255,29 +277,27 @@ pico_turbo_config_t pico_turbo_autotune(const pico_turbo_autotune_t *policy)
 		config.vreg_sel = pico_turbo_voltage_for_khz(p.base_khz);
 	}
 	config.vreg_sel = voltage_floor(&p, config.khz, config.vreg_sel);
+	watchdog_hw->scratch[TURBO_SCRATCH_RESUME_IDX] =
+		TURBO_PACK(config.khz, config.vreg_sel);
 
 	(void)pico_turbo_apply(&config);
 
-	/* The chip keeps hanging: stop climbing, stay at the base. */
-	if (hangs > PICO_TURBO_MAX_HANGS) {
-		config.khz = p.base_khz;
-		config.vreg_sel = pico_turbo_voltage_for_khz(p.base_khz);
-		(void)pico_turbo_apply(&config);
-		pico_turbo_publish(&config, false, hangs);
+	/* Out of retries, or the wall is already at the voltage ceiling: stop
+	 * climbing and stay at the best configuration that passed.  A wall at the
+	 * top voltage is a wall, not something another reset gets around. */
+	if (hangs > p.max_hangs ||
+	    (hung_khz != 0 && hung_sel >= p.max_vreg_sel)) {
+		pico_turbo_config_t stop = config;
 
-		return config;
-	}
+		if ((stored_best >> 8) >= p.base_khz &&
+		    (stored_best >> 8) >= stop.khz) {
+			stop.khz = stored_best >> 8;
+			stop.vreg_sel = (uint16_t)(stored_best & 0xffu);
+		}
+		(void)pico_turbo_apply(&stop);
+		pico_turbo_publish(&stop, true, hangs);
 
-	/* A hang ends the search for this power-up, not just for this boot.  The
-	 * configuration applied above is the best one that had passed, and
-	 * climbing past it again would mean hitting the same wall again: once the
-	 * chip has had to be reset, every later boot stops here too (until the
-	 * chip is power-cycled, which is also how you would retry it after fixing
-	 * the cooling).  A hang says more than a checksum mismatch. */
-	if (hangs > 0) {
-		pico_turbo_publish(&config, true, hangs);
-
-		return config;
+		return stop;
 	}
 
 	/* Arm the watchdog for the search as a whole and feed it between candidates:

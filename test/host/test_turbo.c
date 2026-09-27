@@ -49,6 +49,28 @@ static void check_eq_u32(uint32_t got, uint32_t want, const char *what)
 	}
 }
 
+/*: The regulator setting that was in effect when `needle` was called, or -1. */
+static int voltage_before(const char *needle)
+{
+	int at = test_call_log_find(needle);
+	int last = -1;
+
+	if (at < 0) {
+		return -1;
+	}
+
+	for (int i = 0; i <= at; i++) {
+		const char *entry = test_call_log_get((unsigned)i);
+		int sel;
+
+		if (sscanf(entry, "vreg_set_voltage(%d)", &sel) == 1) {
+			last = sel;
+		}
+	}
+
+	return last;
+}
+
 /*: Put the fake chip into a known good state: stock clocks, default regulator,
  *: empty call log, empty scratch. */
 static void reset_chip(void)
@@ -193,11 +215,118 @@ static void test_a_search_stops_at_what_the_pll_can_do(void)
 	check(steps != NULL, "the trace is readable");
 }
 
+static void test_a_hang_is_retried_with_more_voltage(void)
+{
+	pico_turbo_autotune_t policy = {
+		.base_khz = 125000u,
+		.max_khz = 420000u,
+		.step_khz = 5000u,
+		.stress_ms = 1u,
+		.max_hangs = 4u,
+	};
+	const pico_turbo_step_t *steps = NULL;
+	uint32_t n;
+
+	printf("a hang is retried one voltage step up, not given up on\n");
+	reset_chip();
+
+	/* What the boot after a hang finds: a candidate was on trial at 200 MHz on
+	 * sel 13 -- a weak chip, hung well below where the voltage table would put
+	 * it -- and 195 MHz on sel 13 had already passed.  A frequency that hung at
+	 * *more* voltage than its table entry is the case that tells the retry apart
+	 * from simply re-deriving the voltage from the table. */
+	watchdog_hw->scratch[0] = 0x7074756eu; /* the tuner's magic */
+	watchdog_hw->scratch[1] = (200000u << 8) | 13u;
+	watchdog_hw->scratch[2] = (195000u << 8) | 13u;
+	watchdog_hw->scratch[3] = 0u;
+
+	(void)pico_turbo_autotune(&policy);
+	n = pico_turbo_trace(&steps);
+
+	check(n >= 1u && steps[0].result == PICO_TURBO_STEP_HANG,
+	      "the hang the reset interrupted is recorded");
+	check_eq_u32(steps[0].khz, 200000u, "at the frequency it happened");
+	check_eq_u32(steps[0].vreg_sel, 13u, "on the regulator setting it had");
+
+	/* The ladder's first candidate is that frequency again, with the regulator a
+	 * step above where it hung -- that is the whole point of the record. */
+	check(test_call_log_find("set_sys_clock_khz(200000)") >= 0,
+	      "the frequency that hung is tried again");
+	check(voltage_before("set_sys_clock_khz(200000)") >= 14,
+	      "with one more voltage step than it hung at");
+	check(test_call_log_find("set_sys_clock_khz(415000)") >= 0 ||
+		      test_call_log_find("set_sys_clock_khz(420000)") >= 0,
+	      "and the climb carries on past it");
+}
+
+static void test_a_wall_at_the_voltage_ceiling_stops_the_climb(void)
+{
+	pico_turbo_autotune_t policy = {
+		.base_khz = 125000u,
+		.max_khz = 420000u,
+		.step_khz = 5000u,
+		.stress_ms = 1u,
+		.max_hangs = 4u,
+	};
+	const pico_turbo_step_t *steps = NULL;
+	pico_turbo_config_t config;
+	uint32_t n;
+
+	printf("a wall at the top voltage is a wall: the climb stops\n");
+	reset_chip();
+
+	/* Hung at 390 MHz with the regulator already at the ceiling. */
+	watchdog_hw->scratch[0] = 0x7074756eu;
+	watchdog_hw->scratch[1] = (390000u << 8) | 15u;
+	watchdog_hw->scratch[2] = (385000u << 8) | 15u;
+	watchdog_hw->scratch[3] = 0u;
+
+	config = pico_turbo_autotune(&policy);
+	n = pico_turbo_trace(&steps);
+
+	check_eq_u32(n, 1u, "only the hang itself is in the trace");
+	check(test_call_log_find("set_sys_clock_khz(390000)") < 0,
+	      "the frequency that hung at the ceiling is not tried again");
+	check_eq_u32(config.khz, 385000u, "the run settles at the last thing that passed");
+}
+
+static void test_the_hang_budget_is_respected(void)
+{
+	pico_turbo_autotune_t policy = {
+		.base_khz = 125000u,
+		.max_khz = 420000u,
+		.step_khz = 5000u,
+		.stress_ms = 1u,
+		.max_hangs = 1u,
+	};
+	pico_turbo_config_t config;
+
+	printf("the caller's budget for resets is what decides when to stop\n");
+	reset_chip();
+
+	watchdog_hw->scratch[0] = 0x7074756eu;
+	watchdog_hw->scratch[1] = (390000u << 8) | 13u;
+	watchdog_hw->scratch[2] = (385000u << 8) | 13u;
+	watchdog_hw->scratch[3] = 1u; /* one hang already spent */
+
+	config = pico_turbo_autotune(&policy);
+
+	check(test_call_log_find("set_sys_clock_khz(390000)") < 0,
+	      "no retry once the budget is gone");
+	check_eq_u32(config.khz, 385000u, "the best that passed is what is left running");
+}
+
 int main(void)
 {
 	printf("pico-turbo host tests\n\n");
 
 	test_lowering_takes_the_clock_down_first();
+	printf("\n");
+	test_a_hang_is_retried_with_more_voltage();
+	printf("\n");
+	test_a_wall_at_the_voltage_ceiling_stops_the_climb();
+	printf("\n");
+	test_the_hang_budget_is_respected();
 	printf("\n");
 	test_apply_refuses_what_is_not_a_configuration();
 	printf("\n");

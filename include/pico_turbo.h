@@ -100,6 +100,7 @@ typedef struct {
 	uint32_t stress_ms; /**< how long each candidate is stressed */
 	uint16_t min_vreg_sel; /**< voltage floor (0 = whatever the table says) */
 	uint16_t max_vreg_sel; /**< voltage ceiling (0 = the platform maximum) */
+	uint32_t max_hangs; /**< resets a wall is worth (0 = PICO_TURBO_MAX_HANGS) */
 } pico_turbo_autotune_t;
 
 /* ------------------------------------------------------------------ */

@@ -197,7 +197,10 @@ void busy_wait_at_least_cycles(uint32_t cycles)
 
 /* ---- the call log ---- */
 
-#define CALL_LOG_MAX 64
+/*: A climb of a few hundred MHz at a 5 MHz step is tens of candidates, each
+ *: with a regulator and a clock write: the log has to hold a whole search, or
+ *: an assertion about the end of one would be about a truncated log. */
+#define CALL_LOG_MAX 1024
 
 static char call_log[CALL_LOG_MAX][64];
 static unsigned call_log_len;
