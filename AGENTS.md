@@ -47,8 +47,9 @@ cmake --build build -j
 几次复位）、`TUNE_VERIFY_MS` + `PICO_TURBO_STRESS_MS`（**这两个决定"通过"的含义**）。
 
 烧写与读取：**优先纯 USB**（`picotool load -v -x --vid 0x2e8a --pid 0x000f`；应用态可以先
-`picotool reboot --vid 0x2e8a --pid 0x0009 -f -u` 让它自己进 BOOTSEL ✓），调试器只用于
-兜底与定位卡点。
+`picotool reboot --vid 0x2e8a --pid 0x0009 -f -u` 让它自己进 BOOTSEL ✓）—— 但这条要求应用
+真的提供了 USB 复位接口（纪律 5），拿不准时用调试器的擦—写—回读路径（纪律 3/4），
+调试器同时负责定位卡点。
 
 ## 硬件纪律（都是踩出来的，别省）
 
@@ -57,14 +58,28 @@ cmake --build build -j
    看着像不稳定 ✗）。四项齐了再开循环 —— 曾经整批死在烧写上白等半小时。
 2. **`openocd program ... verify` 可能报 "Verified OK" 而只写了一部分** ✗。要么先
    `flash erase_sector` 再写，要么用 picotool，并且**回读比对**才算数。
-3. **调试会话结束时核不能留在 halt** ✗：核停了，bootrom 的 USB 也不上线，板子会从
+3. **只有调试器（探针没接复位线、应用也没有 USB 复位接口）时的完整烧写路径**：
+   `init` → `halt` → `flash erase_sector 0 0 last` → `flash write_image <elf>` →
+   `verify_image <elf>` → `dump_image` 回读比对 → `reset run` 收尾。注意 `program` 命令
+   内部要先复位，**没有复位线就直接失败**（`Unable to reset target`）；而
+   `verify_image` 在 RP2350 上会因 M33 CRC 算法报错（"error executing cortex_m crc
+   algorithm"）却仍可能给出结论 ⇒ **只有回读比对能当证据**。
+4. **擦空 flash 就是没有按键时的 BOOTSEL** ✓：`flash erase_sector 0 0 last` 之后 RP2350
+   自己会以 `2e8a:000f` 出现在 `lsusb` 里（实测两次），于是 picotool 又能用了。探针没有
+   复位线（`SWCLK/TCK = 1 SWDIO/TMS = 1 ... nRESET = 0`）、板子又卡在一个跑完的 app 上
+   时，这是唯一不靠手的回头路。**但请注意顺序**：擦完必须马上写回镜像，别把空板留在那儿。
+5. **别假设应用一定提供 USB 复位接口** ✗：`picotool reboot --vid 0x2e8a --pid 0x0009 -f -u`
+   只在应用把它编进去时才有效（实测 CoreMark 的镜像只会回 "no 0009 to reset"，而
+   `examples/tune` 的镜像可以）。启动方式选**确定能成**的那条：调试器 `reset run`，
+   或 bootrom 的 `picotool reboot --... --pid 0x000f`。
+6. **调试会话结束时核不能留在 halt** ✗：核停了，bootrom 的 USB 也不上线，板子会从
    `lsusb` 整个消失，下一次烧写报 "no accessible RP-series devices"。会话必须以
    `reset run`/`resume` 收尾。
-4. **日志读取器要在烧写之前启动** ✓，否则抓到的是上一个应用的残留输出，看起来像这次成了。
-5. **过快的 flash 分频会写进 boot2，从而变成"软件复位救不回来"的砖** ✗（实测：官方 Pico 2
+7. **日志读取器要在烧写之前启动** ✓，否则抓到的是上一个应用的残留输出，看起来像这次成了。
+8. **过快的 flash 分频会写进 boot2，从而变成"软件复位救不回来"的砖** ✗（实测：官方 Pico 2
    在 520 MHz 配 DIV 4 = 130 MHz flash，核进 lockup，只有按 BOOTSEL 才回来）。
    测分频阶梯时手边要够得着 BOOTSEL。
-6. **调试器是定位工具，不要为了"纯 USB"而放弃它**：它直接给出卡在哪个函数（例如
+9. **调试器是定位工具，不要为了"纯 USB"而放弃它**：它直接给出卡在哪个函数（例如
    `core_list_find` = 应用其实在跑；`isr_hardfault` = 真的挂了；PC 在 bootrom = 镜像没起来）。
 
 ## 当前已知边界（详见 docs/measurements.md）
@@ -72,7 +87,7 @@ cmake --build build -j
 | 板子 | CPU 上限 | flash |
 | --- | --- | --- |
 | 幸狐 Pico 2（RP2350A） | 564 过、570 挂 | ≤57 MHz 稳、78.75 MHz 出错；上限未定位 |
-| 官方 Pico 2（RP2350A） | 564 过、570 挂（已核实） | DIV 4（130 MHz）锁死、DIV 10（52 MHz）正常 |
+| 官方 Pico 2（RP2350A） | 564 过、570 挂（已核实） | DIV 4（130 MHz）锁死；DIV 6（86.7）/8（65）/10（52）全部 validated ⇒ 上限在 86.7–130 MHz 之间 |
 | 合宙 RP2040 | 420 过、440 锁死 | 105 MHz（DIV 4）长期正常 |
 
 两块 RP2350 板在**同一个地方**停住 ⇒ ≈565–570 MHz 是芯片边界；而 flash 上限明显不同
@@ -80,8 +95,11 @@ cmake --build build -j
 
 ## 待办
 
-- 分频阶梯的中间点（官方板 DIV 6/8、幸狐板整套）。
+- 幸狐板的整套 flash 分频阶梯（现在只有"≤57 稳、78.75 出错"两个点）。
 - Pico W（RP2040 侧同一套：CPU 125/240/300/400/420 + 分频阶梯）。
 - 运行时改 SSI 分频：现在分频按构建上限算，导致 520 MHz 的构建即使在 150 MHz 也把 flash
   压到 15 MHz（`SSI_BAUDR` 可以运行时写，只会更慢不会更快）。
+- **启动时自己测 flash 分频**：分频上限是**板子**的（克隆板和官方板共用
+  `PICO_BOARD=pico2`），按板名给默认值对大厂板偏保守、对克隆板又不够；自检已经会回读镜像，
+  同一套机制可以二分出安全分频。（已定：等各板数据齐了再做。）
 - trace 上限 64 条：长爬升会被截断，可能让**生成的头文件漏掉最高档**（应当增量维护档位表）。
