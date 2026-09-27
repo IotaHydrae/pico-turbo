@@ -185,11 +185,19 @@ Notes:
 Valid values for RP2040: `VREG_VOLTAGE_DEFAULT`, `VREG_VOLTAGE_1_20`, `VREG_VOLTAGE_1_25`, `VREG_VOLTAGE_1_30`.
 For RP2350 the extended range (`VREG_VOLTAGE_1_35` … `VREG_VOLTAGE_3_30`) is also available.
 
+Four read-only variables are set in the caller's scope once this directory has been
+added, for projects that have to size their own work against the clock:
+`PICO_TURBO_RESOLVED_CLK_KHZ`, `PICO_TURBO_RESOLVED_MAX_CLK_KHZ`,
+`PICO_TURBO_RESOLVED_FLASH_DIV` and `PICO_TURBO_RESOLVED_FLASH_CLK_KHZ`. They report
+what the build actually resolved to — including a clock that came from a board
+profile, which `PICO_TURBO_SYS_CLK_KHZ` does not show — and the clock is empty when
+the build asks for no overclocking.
+
 ### Command-line
 
 ```bash
 cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 ..
-cmake -DPICO_TURBO_SYS_CLK_KHZ=512000 -DPICO_TURBO_FLASH_CLK_DIV=9 ..
+cmake -DPICO_TURBO_SYS_CLK_KHZ=512000 -DPICO_TURBO_FLASH_CLK_DIV=10 ..
 cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 -DPICO_TURBO_VREG_VOLTAGE=VREG_VOLTAGE_1_25 ..
 ```
 
@@ -245,7 +253,7 @@ know better — either the ceiling or the divider directly:
 
 ```bash
 cmake -DPICO_TURBO_FLASH_MAX_KHZ=55000 ..
-cmake -DPICO_TURBO_FLASH_CLK_DIV=9 ..
+cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..   # dividers must be even: see above
 ```
 
 With `PICO_TURBO_AUTOTUNE` the divider is computed for `PICO_TURBO_MAX_CLK_KHZ`,
@@ -358,7 +366,7 @@ If the Pico fails to boot, hangs, or behaves erratically after overclocking:
 1. **Increase the flash divider.** The flash chip may not keep up at the auto-computed speed. Try a higher `PICO_TURBO_FLASH_CLK_DIV` to lower the flash clock:
    ```bash
    cmake -DPICO_TURBO_FLASH_CLK_DIV=6 ..
-   cmake -DPICO_TURBO_FLASH_CLK_DIV=9 ..   # if still unstable
+   cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..  # if still unstable (even, like every divider)
    ```
 2. **Run from SRAM.** When the flash simply cannot match the system clock, copy the entire firmware to SRAM at boot. This eliminates the XIP bottleneck entirely (at the cost of reduced available RAM):
    ```bash

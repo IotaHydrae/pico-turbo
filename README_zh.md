@@ -162,11 +162,17 @@ int main(void) {
 RP2040 可用值：`VREG_VOLTAGE_DEFAULT`、`VREG_VOLTAGE_1_20`、`VREG_VOLTAGE_1_25`、`VREG_VOLTAGE_1_30`。
 RP2350 额外可用扩展范围（`VREG_VOLTAGE_1_35` … `VREG_VOLTAGE_3_30`）。
 
+本目录被加入后，会在调用方作用域里设置四个只读变量，供"需要按最终时钟给自己的工作量定尺寸"
+的项目使用：`PICO_TURBO_RESOLVED_CLK_KHZ`、`PICO_TURBO_RESOLVED_MAX_CLK_KHZ`、
+`PICO_TURBO_RESOLVED_FLASH_DIV`、`PICO_TURBO_RESOLVED_FLASH_CLK_KHZ`。它们报告这次构建**最终
+解析出来**的值 —— 包括由 board 档位提供的时钟（那在 `PICO_TURBO_SYS_CLK_KHZ` 里是看不到的）；
+不超频时时钟为空。
+
 ### 命令行传参
 
 ```bash
 cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 ..
-cmake -DPICO_TURBO_SYS_CLK_KHZ=512000 -DPICO_TURBO_FLASH_CLK_DIV=9 ..
+cmake -DPICO_TURBO_SYS_CLK_KHZ=512000 -DPICO_TURBO_FLASH_CLK_DIV=10 ..
 cmake -DPICO_TURBO_SYS_CLK_KHZ=400000 -DPICO_TURBO_VREG_VOLTAGE=VREG_VOLTAGE_1_25 ..
 ```
 
@@ -215,7 +221,7 @@ SRAM 跑（`-DPICO_COPY_TO_RAM=1`）结果相同，这就说明问题在 flash �
 
 ```bash
 cmake -DPICO_TURBO_FLASH_MAX_KHZ=55000 ..
-cmake -DPICO_TURBO_FLASH_CLK_DIV=9 ..
+cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..   # 分频必须为偶数，见上文
 ```
 
 开了 `PICO_TURBO_AUTOTUNE` 时，分频按 `PICO_TURBO_MAX_CLK_KHZ` 计算，而不是按起始频率：它必须对
@@ -317,7 +323,7 @@ make -C test/host        # 编译并运行
 1. **增大 flash 分频系数。** Flash 芯片可能跟不上自动计算的速度。尝试更大的 `PICO_TURBO_FLASH_CLK_DIV` 以降低 flash 工作频率：
    ```bash
    cmake -DPICO_TURBO_FLASH_CLK_DIV=6 ..
-   cmake -DPICO_TURBO_FLASH_CLK_DIV=9 ..   # 若仍不稳定
+   cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..  # 若仍不稳定（和其它分频一样必须是偶数）
    ```
 2. **从 SRAM 运行。** 当 flash 实在无法匹配系统时钟时，在启动时将整个固件拷贝到 SRAM 中执行。这能完全消除 XIP 瓶颈（代价是可用 RAM 减少）：
    ```bash
