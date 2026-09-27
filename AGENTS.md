@@ -79,7 +79,20 @@ cmake --build build -j
 8. **过快的 flash 分频会写进 boot2，从而变成"软件复位救不回来"的砖** ✗（实测：官方 Pico 2
    在 520 MHz 配 DIV 4 = 130 MHz flash，核进 lockup，只有按 BOOTSEL 才回来）。
    测分频阶梯时手边要够得着 BOOTSEL。
-9. **调试器是定位工具，不要为了"纯 USB"而放弃它**：它直接给出卡在哪个函数（例如
+9. **擦写之后不要 `resume`，要 `reset run`** ✗：刚被擦掉的正是当前在执行的代码，`resume`
+   等于让旧应用跑进一片擦空区域（读到 0xFF 就取指异常 → HardFault 挂住，板子的 USB 也
+   跟着消失）。"别把核留在 halt"的正确做法是**在同一个 openocd 会话里以 `reset run`
+   收尾**：擦 → 写 → `verify_image` → 回读比对 → `reset run`，一步到位，既启动了新镜像
+   又不留下 halt 状态。
+10. **读取器的 USB 握手必须重试** ✗：SDK 只根据 CDC 的 line coding + DTR 判断"有没有主机"，
+   没有主机时**写出去的东西直接丢**。实测一次 `[Errno 110] Operation timed out` 就让 30 次
+   soak 变成一篇空日志 —— 空日志不是"慢"，是没人打招呼。握手要重试，而且在**还没收到任何
+   数据**时应当反复重申（应用的等待窗口只有 `PICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS`）。
+11. **`pkill -f` 的模式别匹配到自己** ✗：命令行里带 `pkill -f "pico-console.py"` 就会把执行
+   这条命令的 shell 一起杀掉（实测三次，其中一次还把 runner 的 `-u` 参数漏掉、旧 reader
+   没被杀掉，新 reader 于是 `Resource busy` 拿不到设备）。用 `pkill -f "名字[.]py"` 这种
+   正则技巧，或者直接按 PID 杀。
+12. **调试器是定位工具，不要为了"纯 USB"而放弃它**：它直接给出卡在哪个函数（例如
    `core_list_find` = 应用其实在跑；`isr_hardfault` = 真的挂了；PC 在 bootrom = 镜像没起来）。
 
 ## 当前已知边界（详见 docs/measurements.md）
@@ -89,14 +102,22 @@ cmake --build build -j
 | 幸狐 Pico 2（RP2350A） | 564 过、570 挂 | ≤57 MHz 稳、78.75 MHz 出错；上限未定位 |
 | 官方 Pico 2（RP2350A） | 564 过、570 挂（已核实） | DIV 4（130 MHz）锁死；DIV 6（86.7）/8（65）/10（52）全部 validated ⇒ 上限在 86.7–130 MHz 之间 |
 | 合宙 RP2040 | 420 过、440 锁死 | 105 MHz（DIV 4）长期正常 |
+| 官方 Pico W（RP2040 B2） | 420 过（1.30 V）——420 是平台上限，更高未测 | DIV 4（105 MHz）@420 MHz 通过；再快就越过 QSPI 的 133 MHz 接口极限了 |
 
 两块 RP2350 板在**同一个地方**停住 ⇒ ≈565–570 MHz 是芯片边界；而 flash 上限明显不同
 ⇒ 那是**板子/flash 芯片**的事，不是 RP2350 接口的事。
 
+RP2040 侧是同样的结论、更强的证据：官方 Pico W 走一遍 125→420 MHz，**每个时钟需要的电压
+与合宙板上一轮搜索自己拟合出来的档位完全一致**（260/360/390/420 → sel 11/13/14/15）。
+两块不同厂、不同 flash 的板子给出同一张电压表 ⇒ 分档是**芯片**的，板子决定的是能配多快的
+flash 时钟。
+
 ## 待办
 
 - 幸狐板的整套 flash 分频阶梯（现在只有"≤57 稳、78.75 出错"两个点）。
-- Pico W（RP2040 侧同一套：CPU 125/240/300/400/420 + 分频阶梯）。
+- Pico W 在 420 MHz 以上（合宙板 440 锁死；官方板是否同样，是 RP2040 版的 570 MHz 问题）。
+- 给 `PICO_BOARD=pico_w` 补一个 `boards/pico_w.cmake`：现在它没有 board 文件，走的是通用回退
+  （RP2040 平台上限 420、flash 上限 133 MHz），而这轮已经测出该板在 420 MHz 需要 DIV 4。
 - 运行时改 SSI 分频：现在分频按构建上限算，导致 520 MHz 的构建即使在 150 MHz 也把 flash
   压到 15 MHz（`SSI_BAUDR` 可以运行时写，只会更慢不会更快）。
 - **启动时自己测 flash 分频**：分频上限是**板子**的（克隆板和官方板共用
