@@ -87,6 +87,32 @@ its highest search-accepted tier), so on this evidence the ~565-570 MHz edge is
 the silicon rather than the board: two boards from different vendors, different
 flash parts and different regulators, stop in the same place.
 
+### The 520 MHz row again, on both cores, fifty times
+
+The library's job is to land a configuration the chip can hold, and the way that
+claim gets tested is a long run rather than a fast one: CoreMark with one context
+per core, 34666 iterations each, 520 MHz at 1.60 V, and the divider at 8 for a
+65 MHz flash clock -- then fifty consecutive runs, each rebooting through the
+bootrom so no run inherits a warm chip.
+
+| Quantity | Result |
+|---|---|
+| Runs that produced a score | 50 of 50 |
+| Runs that validated | 50 of 50 |
+| `Errors detected` | 0 |
+| Iterations/sec | mean 2622.081163, min 2622.078177, max 2622.083036 |
+| Spread | 0.0002% -- 30 distinct scores in 50 runs |
+| Clock state lines reading 520000 kHz asked, configured and measured | 50 of 50 |
+
+So the 520 MHz / 1.60 V tier is not a decision the search gets away with once: it
+survives fifty dual-core load-and-reboot cycles without a single run losing its
+result.  The Luckfox board's equivalent soak (36 runs, 2612.7 iterations/sec) is
+0.36% slower and its spread is 0.39% rather than 0.0002% -- the same chip and the
+same firmware, so what differs is the board's power supply, and it shows up as
+jitter well before it shows up as failure.  A search that has to choose a tier
+under a supply like that is choosing with less margin than the score alone
+suggests.
+
 The flash ladder on this board: a fixed 520 MHz core at 1.60 V, each point
 written and read back before it was run.
 
@@ -137,14 +163,22 @@ is well above what the RP2350 board above tolerates.
 
 ## Not measured yet
 
-- The official Pico 2 and Pico W: the same clock sweep and the flash ladder, to
-  tell a chip limit from a board limit.
-- 546, 552, 558 and 564 MHz on the Luckfox board.
-- The flash divider ladder on either board.
-- Anything in RISC-V mode, and any flash part other than the two above.
+- A Pico W, for the RP2040 side of the same questions: clock sweep and flash
+  ladder.
+- 546, 552, 558 and 564 MHz on the Luckfox board, and a dual-core soak above
+  520 MHz on the official one.
+- The flash divider ladder on the Luckfox board (only "solid at 57 MHz, wrong at
+  78.75 MHz" is known) -- and both ladders' middle points want re-running with the
+  self-check reading the image back, which is the mechanism a runtime divider
+  would use.
+- Anything in RISC-V mode, and any flash part other than the two boards above.
 
 ## Method notes, because these have produced wrong answers
 
+- **A log written while no host has the port open is discarded, not buffered**, so
+  a reader that starts late can report a run that never happened -- or miss one
+  that did.  Attach the reader first, and judge a repeated run by the counter the
+  application prints rather than by the lines that arrived.
 - **A frequency the PLL cannot hit exactly is not a failure.**  The SDK leaves the
   clock where it was and reports nothing, so a "failed" point may be a point that
   was never tried: 550 and 560 MHz looked like instability until the run's own
