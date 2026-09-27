@@ -178,6 +178,47 @@ pico_turbo_state_t pico_turbo_state(void)
 	return state;
 }
 
+/*: Tier table handed in by the application (usually from the generated header). */
+static const pico_turbo_config_t *s_tiers;
+static uint32_t s_tier_count;
+
+void pico_turbo_use_table(const pico_turbo_config_t *configs, uint32_t count)
+{
+	s_tiers = configs;
+	s_tier_count = configs ? count : 0;
+}
+
+uint32_t pico_turbo_tier_count(void)
+{
+	return s_tier_count;
+}
+
+pico_turbo_config_t pico_turbo_tier(uint32_t tier)
+{
+	pico_turbo_config_t empty = { 0 };
+
+	if (!s_tiers || tier >= s_tier_count) {
+		return empty;
+	}
+
+	return s_tiers[tier];
+}
+
+bool pico_turbo_select(uint32_t tier)
+{
+	pico_turbo_config_t config = pico_turbo_tier(tier);
+	bool exact;
+
+	if (config.khz == 0) {
+		return false;
+	}
+
+	exact = pico_turbo_apply(&config);
+	pico_turbo_publish(&config, false, s_state.hangs);
+
+	return exact;
+}
+
 void pico_turbo_init(void)
 {
 	pico_turbo_config_t config;

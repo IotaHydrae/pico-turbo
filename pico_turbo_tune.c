@@ -155,6 +155,49 @@ static uint16_t voltage_floor(const pico_turbo_autotune_t *p, uint32_t khz,
 	return sel;
 }
 
+uint32_t pico_turbo_tiers_from_trace(pico_turbo_config_t *out, uint32_t max)
+{
+	uint32_t written = 0;
+	uint16_t last_sel = 0;
+	bool have_sel = false;
+
+	if (!out || max == 0) {
+		return 0;
+	}
+
+	/* The trace is in climb order, so the last stable entry at a given voltage is
+	 * the fastest the chip did at that voltage: emit an entry whenever the voltage
+	 * changes, which is the moment the previous one becomes final. */
+	for (uint32_t i = 0; i < s_trace_len; i++) {
+		pico_turbo_config_t config;
+
+		if (s_trace[i].result != PICO_TURBO_STEP_STABLE) {
+			continue;
+		}
+
+		if (have_sel && s_trace[i].vreg_sel == last_sel) {
+			/* same voltage, higher frequency: replace the entry */
+			if (written == 0) {
+				continue;
+			}
+			out[written - 1].khz = s_trace[i].khz;
+			continue;
+		}
+
+		if (written == max) {
+			break;
+		}
+
+		config.khz = s_trace[i].khz;
+		config.vreg_sel = s_trace[i].vreg_sel;
+		out[written++] = config;
+		last_sel = s_trace[i].vreg_sel;
+		have_sel = true;
+	}
+
+	return written;
+}
+
 pico_turbo_config_t pico_turbo_autotune(const pico_turbo_autotune_t *policy)
 {
 	pico_turbo_autotune_t p = policy_defaults(policy);
@@ -336,6 +379,15 @@ uint32_t pico_turbo_trace(const pico_turbo_step_t **steps)
 	if (steps) {
 		*steps = NULL;
 	}
+
+	return 0u;
+}
+
+uint32_t pico_turbo_tiers_from_trace(pico_turbo_config_t *out, uint32_t max)
+{
+	/* Nothing was searched, so there is no trace to reduce. */
+	(void)out;
+	(void)max;
 
 	return 0u;
 }
