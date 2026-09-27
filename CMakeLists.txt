@@ -31,12 +31,6 @@ endif()
 if(NOT DEFINED PICO_TURBO_VREG_VOLTAGE)
     set(PICO_TURBO_VREG_VOLTAGE "")
 endif()
-# Ceiling the automatic flash divider keeps the XIP clock under.  133 MHz is the
-# RP2040/RP2350 limit for the QSPI interface; a slow flash chip may need less, in
-# which case set PICO_TURBO_FLASH_CLK_DIV directly.
-if(NOT DEFINED PICO_TURBO_FLASH_MAX_KHZ)
-    set(PICO_TURBO_FLASH_MAX_KHZ 133000)
-endif()
 # Runtime search for the best frequency/voltage instead of one fixed point.
 # PICO_TURBO_SYS_CLK_KHZ becomes the frequency to start from then.
 if(NOT DEFINED PICO_TURBO_AUTOTUNE)
@@ -58,6 +52,20 @@ if(DEFINED PICO_BOARD)
     set(_BOARD_FILE "${CMAKE_CURRENT_LIST_DIR}/boards/${PICO_BOARD}.cmake")
     if(EXISTS "${_BOARD_FILE}")
         include("${_BOARD_FILE}")
+    endif()
+endif()
+
+# Ceiling the automatic flash divider keeps the XIP clock under.  133 MHz is the
+# QSPI interface's limit, which is not the same thing as what a board's flash
+# tolerates: on a Pico 2 measured here, 78 MHz of flash clock produced wrong
+# answers and a lockup while 52 MHz was solid, so the board file names its own
+# number.  A flash chip that needs less still can have it -- set
+# PICO_TURBO_FLASH_CLK_DIV directly and the divider stops being derived.
+if(NOT DEFINED PICO_TURBO_FLASH_MAX_KHZ)
+    if(DEFINED _FLASH_MAX_KHZ)
+        set(PICO_TURBO_FLASH_MAX_KHZ ${_FLASH_MAX_KHZ})
+    else()
+        set(PICO_TURBO_FLASH_MAX_KHZ 133000)
     endif()
 endif()
 

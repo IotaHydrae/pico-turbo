@@ -9,8 +9,18 @@
 #   extreme — 512 MHz, 1.60 V,       DIV=9  (flash  57 MHz)
 
 set(_PLATFORM_MAX_KHZ 520000)
+# Measured on a Pico 2 here: with the divider derived from 133 MHz (DIV 4,
+# so 78 MHz of flash clock at 315 MHz) the chip computed wrong answers and
+# locked up; at 52 MHz it climbed to 570 MHz without a single hang.  The
+# RP2350 runs XIP with the divider crt0 applies from boot2, so the flash
+# clock scales with clk_sys and this number is what bounds it.
+set(_FLASH_MAX_KHZ 60000)
 set(_BOOT2_DEFAULT_DIV 4)
-set(_FLASH_REQUIRES_EVEN OFF)
+# The RP2350's boot stage 2 has the same requirement as the RP2040's
+# (#error PICO_FLASH_SPI_CLKDIV must be even), and on RP2350 the divider is
+# applied by crt0 running boot2 at startup, so an odd one is not a hint that
+# will be rounded -- it is a divider the hardware will not take.
+set(_FLASH_REQUIRES_EVEN ON)
 
 if(PICO_TURBO_PROFILE STREQUAL "safe")
     set(PICO_TURBO_SYS_CLK_KHZ 225000)
