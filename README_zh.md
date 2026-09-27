@@ -168,6 +168,10 @@ RP2350 额外可用扩展范围（`VREG_VOLTAGE_1_35` … `VREG_VOLTAGE_3_30`）
 解析出来**的值 —— 包括由 board 档位提供的时钟（那在 `PICO_TURBO_SYS_CLK_KHZ` 里是看不到的）；
 不超频时时钟为空。
 
+`PICO_TURBO_FLASH_MAX_KHZ` 以及 board 文件里的上限都可以从命令行覆盖
+（`-DPICO_TURBO_FLASH_MAX_KHZ=55000`、`-D_PLATFORM_MAX_KHZ=440000`）—— 探测一块板子的真实
+上限时不必改文件。
+
 ### 命令行传参
 
 ```bash

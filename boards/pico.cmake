@@ -7,7 +7,12 @@
 #   turbo   — 360 MHz, 1.20 V,       DIV=4  (flash  90 MHz)
 #   extreme — 400 MHz, 1.30 V,       DIV=4  (flash 100 MHz)
 
-set(_PLATFORM_MAX_KHZ 420000)
+# Overridable from the command line (-D_PLATFORM_MAX_KHZ=420000): probing where a board actually
+# gives up means asking for a clock above the ceiling, and that should not
+# require editing this file.
+if(NOT DEFINED _PLATFORM_MAX_KHZ)
+    set(_PLATFORM_MAX_KHZ 420000)
+endif()
 set(_BOOT2_DEFAULT_DIV 2)
 set(_FLASH_REQUIRES_EVEN ON)
 

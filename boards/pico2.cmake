@@ -13,13 +13,23 @@
 # its own results there, 600 MHz at 1.60 V hangs, so this is the ceiling the
 # silicon was found to have with room to spare -- it is not a promise about
 # any other board's.
-set(_PLATFORM_MAX_KHZ 600000)
+# Overridable from the command line (-D_PLATFORM_MAX_KHZ=600000): probing where a board actually
+# gives up means asking for a clock above the ceiling, and that should not
+# require editing this file.
+if(NOT DEFINED _PLATFORM_MAX_KHZ)
+    set(_PLATFORM_MAX_KHZ 600000)
+endif()
 # Measured on a Pico 2 here: with the divider derived from 133 MHz (DIV 4,
 # so 78 MHz of flash clock at 315 MHz) the chip computed wrong answers and
 # locked up; at 52 MHz it climbed to 570 MHz without a single hang.  The
 # RP2350 runs XIP with the divider crt0 applies from boot2, so the flash
 # clock scales with clk_sys and this number is what bounds it.
-set(_FLASH_MAX_KHZ 60000)
+# Overridable from the command line (-D_FLASH_MAX_KHZ=60000): probing where a board actually
+# gives up means asking for a clock above the ceiling, and that should not
+# require editing this file.
+if(NOT DEFINED _FLASH_MAX_KHZ)
+    set(_FLASH_MAX_KHZ 60000)
+endif()
 set(_BOOT2_DEFAULT_DIV 4)
 # The RP2350's boot stage 2 has the same requirement as the RP2040's
 # (#error PICO_FLASH_SPI_CLKDIV must be even), and on RP2350 the divider is

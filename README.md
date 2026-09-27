@@ -193,6 +193,10 @@ what the build actually resolved to — including a clock that came from a board
 profile, which `PICO_TURBO_SYS_CLK_KHZ` does not show — and the clock is empty when
 the build asks for no overclocking.
 
+`PICO_TURBO_FLASH_MAX_KHZ` and the ceiling in a board file can also be overridden
+from the command line (`-DPICO_TURBO_FLASH_MAX_KHZ=55000`, `-D_PLATFORM_MAX_KHZ=440000`),
+which is how a board's real limits get probed without editing the file.
+
 ### Command-line
 
 ```bash

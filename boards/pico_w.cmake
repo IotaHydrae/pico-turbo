@@ -28,14 +28,24 @@
 # The RP2040's own ceiling, which the SDK's check_sys_clock_khz will not go past
 # anyway.  This is the platform's number rather than a measurement: 420 MHz is the
 # highest clock tried on this board, and 440 MHz locked an AirMech RP2040 up.
-set(_PLATFORM_MAX_KHZ 420000)
+# Overridable from the command line (-D_PLATFORM_MAX_KHZ=420000): probing where a board actually
+# gives up means asking for a clock above the ceiling, and that should not
+# require editing this file.
+if(NOT DEFINED _PLATFORM_MAX_KHZ)
+    set(_PLATFORM_MAX_KHZ 420000)
+endif()
 
 # Measured: the ladder above ran with the flash clock following this ceiling
 # exactly -- ceil(clk/105) rounded up to even gives DIV 2 at 125 MHz and DIV 4
 # everywhere above 240, which is the divider each of those rows was run at.  105
 # MHz is the fastest this board has been *shown* to hold; the QSPI interface's own
 # limit is 133 MHz, and a divider is only interesting below that.
-set(_FLASH_MAX_KHZ 105000)
+# Overridable from the command line (-D_FLASH_MAX_KHZ=105000): probing where a board actually
+# gives up means asking for a clock above the ceiling, and that should not
+# require editing this file.
+if(NOT DEFINED _FLASH_MAX_KHZ)
+    set(_FLASH_MAX_KHZ 105000)
+endif()
 set(_BOOT2_DEFAULT_DIV 2)
 # The RP2040's boot stage 2 refuses an odd divider outright
 # (#error PICO_FLASH_SPI_CLKDIV must be even), so an odd one is not a hint that
