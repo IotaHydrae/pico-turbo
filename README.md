@@ -330,6 +330,9 @@ Nothing follows the clock for you.  Anything whose timing is fixed at *compile* 
 
 USB is the exception: `clk_usb` is fed by the separate 48 MHz PLL, so USB keeps working at any `clk_sys` — and, for the same reason, overclocking does not make USB any faster.
 
+Measured numbers, the boards they came from, and the traps that produced
+wrong ones: [docs/measurements.md](docs/measurements.md).
+
 ## Tests
 
 The half of the library that is not silicon-dependent -- the order the regulator and

@@ -293,6 +293,9 @@ uint32_t pico_turbo_trace(const pico_turbo_step_t **steps);
 
 USB 是例外：`clk_usb` 由独立的 48 MHz PLL 供给，所以 `clk_sys` 怎么变 USB 都照常工作 —— 同样因为这个，超频也**不会**让 USB 变快。
 
+实测数据、来自哪块板子、以及那些会得出错误结论的坑：
+[docs/measurements.md](docs/measurements.md)。
+
 ## 宿主机上的单元测试
 
 跟芯片无关的那一半（电压/频率施加顺序、非法配置的拒绝、trace 到档位表的归并、搜索
