@@ -14,7 +14,7 @@ CoreMark results, which is where the stability claims come from, are in the
 |---|---|---|---|
 | Luckfox Pico 2 | RP2350A rev 2, QFN60 | Puya PY25Q32HB, 4 MB QSPI | heatsink fitted; 2 A buck-boost on the 3V3 rail |
 | AirMech RP2040 (the PUD panel host) | RP2040 | its own part | the board the RP2040 defaults came from |
-| Official Pico 2 | RP2350A | -- | connected, not measured yet |
+| Official Pico 2 | RP2350A | its own part | measured: see below |
 | Official Pico W | RP2040 + wireless | -- | connected, not measured yet |
 
 ## Luckfox Pico 2 (RP2350A)
@@ -65,6 +65,33 @@ its datasheet clock rating has not been checked, so whether the window above is
 the part or the board's layout is still open.  Boards: see the CoreMark port for
 the same measurement on an official Pico 2, which is the experiment that settles
 it.
+
+## Official Pico 2 (RP2350A)
+
+CoreMark, 1.60 V, single core, iterations scaled so each run is ~12 s.  Every row
+reports `Correct operation validated`.
+
+| Clock | Iterations/sec | Against 520 MHz |
+|---|---|---|
+| 520 MHz | 1465.38 | 1.000x |
+| 546 MHz | 1538.64 | 1.050x |
+| 552 MHz | 1555.56 | 1.062x |
+| 558 MHz | 1572.47 | 1.073x |
+| 564 MHz | 1589.37 | 1.085x |
+| 570 MHz | does not run | -- |
+
+The 570 MHz row is verified rather than inferred: the flash was read back and
+matched the build exactly, and the core was found in `isr_hardfault`.  That is the
+same boundary the Luckfox board has (564 passes, 570 fails there too, and 540 was
+its highest search-accepted tier), so on this evidence the ~565-570 MHz edge is
+the silicon rather than the board: two boards from different vendors, different
+flash parts and different regulators, stop in the same place.
+
+The flash ladder has one point so far: a 520 MHz build with
+`-DPICO_TURBO_FLASH_CLK_DIV=4` (a 130 MHz flash clock) locks this board up -- the
+core was found at PC 0xeffffffe -- while DIV 10 (52 MHz) runs the same benchmark
+happily.  DIV 6 (86.7 MHz) and DIV 8 (65 MHz) are the points that would locate the
+ceiling, and the lockup stopped the walk before they ran.
 
 ## AirMech RP2040 (the PUD panel host)
 
@@ -120,3 +147,13 @@ is well above what the RP2350 board above tolerates.
 - **The watchdog scratch registers survive a debug reset but not the rescue-config
   reset**, so a recovery that uses the latter also throws away the search's memory
   of what hung.
+- **A debug session that ends with the core halted also takes the bootrom's USB
+  down**, so the board disappears from `lsusb` entirely and the next flash finds
+  "no accessible RP-series devices".  End every session with a reset or a resume.
+- **Attach the console reader before flashing, not after.**  An application that is
+  still running from the previous flash answers first otherwise, and the log fills
+  with the *last* run's output -- which reads exactly like the current one
+  succeeded.
+- **A chip in lockup needs a reset before anything can be flashed into it**, and
+  openocd's flash driver will say so in its own words ("failed to call reset core
+  state").  That is a property of the state the chip is in, not of the tool.
