@@ -43,6 +43,15 @@ if(NOT DEFINED PICO_TURBO_STRESS_MS)
     set(PICO_TURBO_STRESS_MS 100)
 endif()
 
+# How long each tier is soaked when it is verified again afterwards.  Raising it
+# (and PICO_TURBO_STRESS_MS with it) is how you find out whether the search's
+# verdict is the one a long workload would give: on a Pico 2 measured here, a
+# 200 ms screen accepted 570 MHz at 1.60 V and a twelve second CoreMark run could
+# not start there, while the tier below passed three runs of it.
+if(NOT DEFINED TUNE_VERIFY_MS)
+    set(TUNE_VERIFY_MS 200)
+endif()
+
 # Voltage window for the search.  Leave empty for the library's own table; set a
 # floor (VREG_VOLTAGE_* register encoding, e.g. 17 for 1.40 V on an RP2350) to
 # climb a chip that is known to hang below it:
@@ -74,6 +83,7 @@ add_executable(tune tune.c)
 target_link_libraries(tune pico_turbo pico_stdlib)
 target_compile_definitions(tune PRIVATE
     TUNE_BASE_KHZ=${TUNE_BASE_KHZ}u
+    TUNE_VERIFY_MS=${TUNE_VERIFY_MS}u
     TUNE_MIN_VREG_SEL=${TUNE_MIN_VREG_SEL}
     TUNE_MAX_VREG_SEL=${TUNE_MAX_VREG_SEL}
     TUNE_MAX_HANGS=${TUNE_MAX_HANGS})

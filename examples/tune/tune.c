@@ -186,10 +186,13 @@ int main(void)
 	printf("searching %lu..%lu kHz in %lu kHz steps, %lu ms per candidate\n",
 	       (unsigned long)policy.base_khz, (unsigned long)policy.max_khz,
 	       (unsigned long)policy.step_khz, (unsigned long)policy.stress_ms);
-	printf("voltage window: sel %u..%u%s, %lu resets allowed at a wall\n\n",
+	printf("voltage window: sel %u..%u%s, %lu resets allowed at a wall\n",
 	       (unsigned)policy.min_vreg_sel, (unsigned)policy.max_vreg_sel,
 	       policy.min_vreg_sel ? " (forced)" : " (library table)",
 	       (unsigned long)policy.max_hangs);
+	printf("each tier is verified again with a %lu ms soak: that is what the\n"
+	       "file this prints does and does not mean\n\n",
+	       (unsigned long)TUNE_VERIFY_MS);
 
 	config = pico_turbo_autotune(&policy);
 	n_steps = pico_turbo_trace(&steps);
