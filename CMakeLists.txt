@@ -118,6 +118,9 @@ if(PICO_TURBO_SYS_CLK_KHZ STREQUAL "")
     target_link_libraries(pico_turbo PUBLIC pico_stdlib hardware_clocks
                                              hardware_vreg hardware_watchdog)
     message(STATUS "pico-turbo: disabled (stock clocks)")
+    # Defined but empty: no overclocking was asked for, so the SDK's default clock
+    # is what runs.  Consumers check the value, not whether it exists.
+    set(PICO_TURBO_RESOLVED_CLK_KHZ "" PARENT_SCOPE)
     return()
 endif()
 
@@ -212,7 +215,8 @@ endif()
 
 # one-line summary
 math(EXPR _MHZ "${PICO_TURBO_SYS_CLK_KHZ} / 1000")
-math(EXPR _FLASH_MHZ "${_FLASH_TOP_KHZ} / ${_DIV} / 1000")
+math(EXPR _FLASH_KHZ "${_FLASH_TOP_KHZ} / ${_DIV}")
+math(EXPR _FLASH_MHZ "${_FLASH_KHZ} / 1000")
 if(PICO_TURBO_AUTOTUNE)
     message(STATUS "pico-turbo: search ${PICO_TURBO_SYS_CLK_KHZ}..${PICO_TURBO_MAX_CLK_KHZ} kHz "
                    "in ${PICO_TURBO_STEP_KHZ} kHz steps, ${PICO_TURBO_STRESS_MS} ms per candidate; "
@@ -224,3 +228,16 @@ elseif(DEFINED PICO_BOARD AND NOT PICO_TURBO_PROFILE STREQUAL "")
 else()
     message(STATUS "pico-turbo: ${_MHZ} MHz, flash DIV ${_DIV} (${_FLASH_MHZ} MHz)")
 endif()
+
+# --- what this build resolved to, for whoever added this directory -----------
+# The board's profile can supply the clock, so a consumer that reads only the input
+# variables (PICO_TURBO_SYS_CLK_KHZ and friends) can see nothing at all and end up
+# sizing its own work for the wrong frequency -- which is what happened to a
+# CoreMark port whose iteration count is derived from the clock: a profile build
+# ran the chip at 420 MHz while the count was computed for 125 MHz, and the run
+# came out under CoreMark's own ten second rule.  These are set in the caller's
+# scope; the clock is empty when this build asks for no overclocking.
+set(PICO_TURBO_RESOLVED_CLK_KHZ ${PICO_TURBO_SYS_CLK_KHZ} PARENT_SCOPE)
+set(PICO_TURBO_RESOLVED_MAX_CLK_KHZ ${PICO_TURBO_MAX_CLK_KHZ} PARENT_SCOPE)
+set(PICO_TURBO_RESOLVED_FLASH_DIV ${_DIV} PARENT_SCOPE)
+set(PICO_TURBO_RESOLVED_FLASH_CLK_KHZ ${_FLASH_KHZ} PARENT_SCOPE)
