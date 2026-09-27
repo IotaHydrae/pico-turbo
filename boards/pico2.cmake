@@ -6,7 +6,7 @@
 #   safe    — 225 MHz, stock voltage, DIV=4  (flash  56 MHz)
 #   fast    — 300 MHz, 1.20 V,       DIV=4  (flash  75 MHz)
 #   turbo   — 366 MHz, 1.20 V,       DIV=4  (flash  91 MHz)
-#   extreme — 512 MHz, 1.60 V,       DIV=9  (flash  57 MHz)
+#   extreme — 512 MHz, 1.60 V,       DIV=10 (flash  51 MHz)
 
 # The highest frequency the library will let a build ask for.  Measured on a
 # Pico 2 here: 570 MHz at 1.60 V passes a self-check and CoreMark validates
@@ -39,7 +39,10 @@ elseif(PICO_TURBO_PROFILE STREQUAL "turbo")
 elseif(PICO_TURBO_PROFILE STREQUAL "extreme")
     set(PICO_TURBO_SYS_CLK_KHZ 512000)
     set(PICO_TURBO_VREG_VOLTAGE VREG_VOLTAGE_1_60)
-    set(PICO_TURBO_FLASH_CLK_DIV 9)
+    # The divider is left to the auto rule above (60 MHz ceiling, rounded up to
+    # even: DIV 10, 51 MHz of flash clock).  This profile used to pin DIV 9, which
+    # is odd -- and an odd divider is not a hint that gets rounded, it is a
+    # configure-time error, so this profile could not be used at all.
 elseif(NOT PICO_TURBO_PROFILE STREQUAL "")
     message(FATAL_ERROR "pico-turbo: unknown profile '${PICO_TURBO_PROFILE}' for board pico2")
 endif()
