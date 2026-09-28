@@ -214,13 +214,16 @@ flash clock, came up at 440000 kHz measured with vreg sel 15, and validated 832.
 iterations/sec -- the number the point was measured at with every parameter passed
 explicitly.
 
-One caution the RP2350 side shows and this board does not: there, the flash divider
-is not a free variable.  520 MHz on an official Pico 2 read 2622.08 iterations/sec
-with a 0.0002% spread at DIV 8 (65 MHz of flash clock) and 2611.46 with 0.0626% at
-DIV 10 (52 MHz) -- 0.4% slower and far less steady, because the cache misses it does
-take cost more.  On this board, 440 MHz at DIV 4 (110 MHz) and DIV 6 (73 MHz) scored
-the same 832.21, so the working set really does fit.  Either way, a row without its
-divider is not reproducible.
+One caution the RP2350 side shows and this board does not: there, the flash divider is
+worth something -- but only with two cores.  520 MHz on an official Pico 2 measured
+2622.486184 iterations/sec over ten dual-core runs at DIV 8 (65 MHz of flash clock)
+and 2611.277278 over ten at DIV 10 (52 MHz): 0.43% slower, with a spread of 0.0271%
+against 0.0003%, ninety times less steady.  Both were measured through the same flow in
+the same session, which matters -- an earlier version of this paragraph compared a
+fifty-run soak with a ten-run one and called the difference a divider effect.  With one
+core the same clock reads 1465.38, 1465.39 and 1465.40 at DIV 10, 7 and 5, so 104 MHz of
+flash clock buys nothing at all.  It is contention rather than bandwidth, and it is why
+a row without its divider is not reproducible.
 
 Soaked at 420 MHz with both cores, 20160 iterations each and a bootrom reboot
 between runs: 27 consecutive complete runs, every one validated, no errors, mean
