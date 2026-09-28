@@ -53,12 +53,14 @@ endif()
 if(NOT DEFINED _FLASH_MAX_KHZ)
     set(_FLASH_MAX_KHZ 60000)
 endif()
-set(_BOOT2_DEFAULT_DIV 4)
-# The RP2350's boot stage 2 has the same requirement as the RP2040's
-# (#error PICO_FLASH_SPI_CLKDIV must be even), and on RP2350 the divider is
-# applied by crt0 running boot2 at startup, so an odd one is not a hint that
-# will be rounded -- it is a divider the hardware will not take.
-set(_FLASH_REQUIRES_EVEN ON)
+set(_BOOT2_DEFAULT_DIV 2)
+# An odd divider is legal here.  The RP2040's boot stage 2 refuses one
+# (#error PICO_FLASH_SPI_CLKDIV must be even, in its w25q080 and at25sf128a
+# variants), but the RP2350's w25q080 -- the one the official boards build -- only
+# checks the maximum, and the RP2350's QMI divider has no even constraint: three
+# Waveshare RP2350 boards ship PICO_FLASH_SPI_CLKDIV 3.  (The RP2350's at25sf128a
+# variant does check it, so a board using that one needs even dividers.)
+set(_FLASH_REQUIRES_EVEN OFF)
 
 if(PICO_TURBO_PROFILE STREQUAL "safe")
     set(PICO_TURBO_SYS_CLK_KHZ 300000)

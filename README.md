@@ -240,8 +240,11 @@ the divider has to be derived from the highest frequency the build can reach, no
 from the one it starts at. The library computes the smallest valid divider that
 keeps flash under a ceiling:
 
-- **the divider must be even** on both RP2040 and RP2350 (the boot stage 2 of each
-  has the same `#error PICO_FLASH_SPI_CLKDIV must be even`)
+- **the divider must be even on RP2040**, whose boot stage 2 refuses an odd one
+  (`#error PICO_FLASH_SPI_CLKDIV must be even` in its w25q080 and at25sf128a
+  variants).  The RP2350's w25q080 -- what the official boards build -- only checks
+  the maximum, and its QMI divider has no even constraint, so odd dividers are legal
+  there (three Waveshare RP2350 boards use 3)
 - that ceiling is **per board**: `boards/pico2.cmake` uses 60 MHz, `boards/pico_w.cmake`
   105 MHz (measured; the QSPI interface's own limit is 133 MHz), and an RP2040 board
   with no file of its own the 133 MHz interface limit
@@ -259,7 +262,7 @@ know better — either the ceiling or the divider directly:
 
 ```bash
 cmake -DPICO_TURBO_FLASH_MAX_KHZ=55000 ..
-cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..   # dividers must be even: see above
+cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..   # even on RP2040: see above
 ```
 
 With `PICO_TURBO_AUTOTUNE` the divider is computed for `PICO_TURBO_MAX_CLK_KHZ`,

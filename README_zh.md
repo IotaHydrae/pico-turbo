@@ -213,8 +213,9 @@ target_link_libraries(my_app pico_turbo)
 XIP flash 时钟 = `sys_clk / PICO_FLASH_SPI_CLKDIV`，所以它会跟着核心频率一起涨：分频值必须按
 **这个构建能到达的最高频率**来算，而不是按起始频率。库取"让 flash 不超过上限"的最小合法分频值：
 
-- **分频系数必须为偶数**，RP2040 和 RP2350 都一样（两边的 boot stage 2 都有同一句
-  `#error PICO_FLASH_SPI_CLKDIV must be even`）
+- **偶数分频是 RP2040 的要求**：它的 boot stage 2（w25q080 与 at25sf128a 两个变体）有
+  `#error PICO_FLASH_SPI_CLKDIV must be even`。RP2350 的 w25q080（官方板用的那个）只查上限、
+  QMI 分频也没有偶数限制，所以**奇数分频在 RP2350 上合法**（Waveshare 三块 RP2350 板就写 3）
 - 上限**按板子给**：`boards/pico2.cmake` 用 60 MHz，`boards/pico_w.cmake` 用 105 MHz（实测值；
   QSPI 接口自身极限是 133 MHz），没有自己 board 文件的 RP2040 板子才沿用 133 MHz 接口上限
 
@@ -227,7 +228,7 @@ SRAM 跑（`-DPICO_COPY_TO_RAM=1`）结果相同，这就说明问题在 flash �
 
 ```bash
 cmake -DPICO_TURBO_FLASH_MAX_KHZ=55000 ..
-cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..   # 分频必须为偶数，见上文
+cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..   # RP2040 上必须偶数，见上文
 ```
 
 开了 `PICO_TURBO_AUTOTUNE` 时，分频按 `PICO_TURBO_MAX_CLK_KHZ` 计算，而不是按起始频率：它必须对
@@ -329,7 +330,7 @@ make -C test/host        # 编译并运行
 1. **增大 flash 分频系数。** Flash 芯片可能跟不上自动计算的速度。尝试更大的 `PICO_TURBO_FLASH_CLK_DIV` 以降低 flash 工作频率：
    ```bash
    cmake -DPICO_TURBO_FLASH_CLK_DIV=6 ..
-   cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..  # 若仍不稳定（和其它分频一样必须是偶数）
+   cmake -DPICO_TURBO_FLASH_CLK_DIV=10 ..  # 若仍不稳定（RP2040 上分频必须是偶数）
    ```
 2. **从 SRAM 运行。** 当 flash 实在无法匹配系统时钟时，在启动时将整个固件拷贝到 SRAM 中执行。这能完全消除 XIP 瓶颈（代价是可用 RAM 减少）：
    ```bash

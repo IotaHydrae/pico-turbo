@@ -16,9 +16,14 @@
 3. **提交前 `make -C test/host` 必须全过**（无需板子）。库的策略面（施加顺序、配置校验、
    trace→档位、搜索边界）在宿主机上有测试；改了这些行为就要加/改对应的测试，
    并且**做一次变异验证**（把修复回退掉，确认测试会红）。
-4. **flash 分频必须是偶数**，RP2040/RP2350 的 boot stage 2 都有
-   `#error PICO_FLASH_SPI_CLKDIV must be even`；上限**按板子给**（`boards/*.cmake` 的
-   `_FLASH_MAX_KHZ`），不是按接口极限。
+4. **偶数分频是 RP2040 的要求，不是 RP2350 的**（2026-09 从 SDK 源码核对过）：
+   RP2040 的 `boot2_w25q080`/`boot2_at25sf128a` 里有 `#error PICO_FLASH_SPI_CLKDIV must be
+   even`，而 **RP2350 的 `boot2_w25q080` 只查上限、不查奇偶**（Waveshare 三块 RP2350 板就写
+   `PICO_FLASH_SPI_CLKDIV 3`；RP2350 的 `at25sf128a` 变体才查）。所以 `boards/pico2.cmake`
+   是 `_FLASH_REQUIRES_EVEN OFF`，RP2040 的两个 board 文件是 ON。上限**按板子给**
+   （`boards/*.cmake` 的 `_FLASH_MAX_KHZ`），不是按接口极限。
+   顺带记住 SDK 的**默认分频是 2**（两个平台的 `boot2_w25q080` 都 `#define ... 2`，
+   at25sf128a 是 4；官方 `pico`/`pico_w`/`pico2` 三个板头文件也都写 2）。
 5. **`pico_turbo_apply()` 的施加顺序不许合并成一种**：上升沿先调压再调频，下降沿先降频
    再调压。反过来会在低电压下继续跑旧高频 —— 实测就是锁死、要断电。
 6. **只要已验证的结论**。文档里的每个数字要写清来自哪块板、哪个构建；推测显式标"未验证"。

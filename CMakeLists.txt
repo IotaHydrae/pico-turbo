@@ -155,8 +155,9 @@ else()
         math(EXPR _REM "${_DIV} % 2")
         if(_REM GREATER 0)
             message(FATAL_ERROR
-                "pico-turbo: this board requires an even flash DIV -- the boot "
-                "stage 2 of both RP2040 and RP2350 refuses an odd one")
+                "pico-turbo: this board requires an even flash DIV -- its boot "
+                "stage 2 refuses an odd one (RP2040 boards do; an RP2350 with the "
+                "w25q080 boot2 does not, and boards/*.cmake says which)")
         endif()
     endif()
 endif()
