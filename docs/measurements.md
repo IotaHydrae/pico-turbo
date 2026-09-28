@@ -126,11 +126,17 @@ written and read back before it was run.
 | Divider | Flash clock | Result |
 |---|---|---|
 | 4 | 130 MHz | locks the chip up (PC 0xeffffffe); only the BOOTSEL button brings it back |
+| 5 | 104 MHz | validated at 520 MHz, 1465.40 iterations/sec -- an odd divider, which this chip's boot stage 2 accepts |
+| 5 | 109.2 MHz | validated at 546 MHz, 1538.66 |
+| 5 | 112.8 MHz | hard-faults at 564 MHz |
 | 6 | 86.7 MHz | validated, 1465.39 iterations/sec |
+| 7 | 74.3 MHz | validated, 1465.39 (odd as well) |
 | 8 | 65 MHz | validated, 1465.39 |
 | 10 | 52 MHz | validated, 1465.38 |
 
-So this board's flash ceiling is between 86.7 and 130 MHz, while the Luckfox board
+So this board's flash ceiling is between 109.2 and 112.8 MHz (the part is rated 133 MHz, so
+what that brackets is the part *in this configuration* -- QMI timing, board layout and all),
+while the Luckfox board
 above failed at 78.75 MHz and was solid at 57 MHz.  Two RP2350A boards, the same
 chip revision, and the flash ceiling differs by more than a factor of two: it is
 the board's flash part and layout, not the QSPI interface.  (Which is also why the
