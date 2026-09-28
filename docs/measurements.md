@@ -165,6 +165,14 @@ raised out of the way (`-D_PLATFORM_MAX_KHZ`, which the board files now allow fr
 the command line) the same board ran **440 MHz at 1.30 V** and validated 832.21
 iterations/sec, still 1.891 per MHz.
 
+At 1.30 V the same board also withstood a soak at that clock: **30 consecutive
+dual-core runs at 440 MHz** (divider 4, so 110 MHz of flash clock -- above the 105
+the board file carries, and the score was identical either way, which says the load
+lives in the XIP cache), every run validated, no errors, a 0.0009% spread and a
+mean of 1484.793434 iterations/sec.  440 MHz is the highest the RP2040's regulator
+is documented for, so this board sits at the corner of the policy's box *and* holds
+there.
+
 That is worth reading next to the AirMech board below, whose 440 MHz *locked up*.
 So on RP2040 the two boards agree on the voltage each clock needs -- the tiers are
 the chip's -- and disagree about how far the top voltage goes: the official board
