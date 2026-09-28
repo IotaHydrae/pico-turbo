@@ -12,10 +12,10 @@ CoreMark results, which is where the stability claims come from, are in the
 
 | Board | Chip | Flash | Notes |
 |---|---|---|---|
-| Luckfox Pico 2 | RP2350A rev 2, QFN60 | Puya PY25Q32HB, 4 MB QSPI | heatsink fitted; 2 A buck-boost on the 3V3 rail |
-| AirMech RP2040 (the PUD panel host) | RP2040 | its own part | the board the RP2040 defaults came from |
-| Official Pico 2 | RP2350A | its own part | measured: see below |
-| Official Pico W | RP2040 B2 | 2 MB (its own part) | measured: see below |
+| Luckfox Pico 2 | RP2350A rev 2 (A2), QFN60 | Puya PY25Q32HB, 4 MB QSPI *(vendor description, not measured)* | heatsink fitted; 2 A buck-boost on the 3V3 rail |
+| AirMech RP2040 (the PUD panel host) | RP2040 | not probed | the board the RP2040 defaults came from |
+| Official Pico 2 | RP2350A rev 2 (A2) | Winbond W25Q32FV/JV, 4 MB QSPI (measured: `id = 0x1640ef`, 4096 KiB) | measured: see below |
+| Official Pico W | RP2040 B2 | Winbond W25Q16JV, 2 MB QSPI (measured: `id = 0x1540ef`, 2048 KiB) | measured: see below |
 
 ## Luckfox Pico 2 (RP2350A)
 
@@ -79,6 +79,13 @@ reports `Correct operation validated`.
 | 558 MHz | 1572.47 | 1.073x |
 | 564 MHz | 1589.37 | 1.085x |
 | 570 MHz | does not run | -- |
+
+With both cores the same board stops earlier: 520 MHz ran 50 consecutive dual-core
+runs (above), 546 MHz hangs joining core 1 (PC in `core_stop_parallel`) and 564 MHz
+with two contexts hard-faults before printing anything.  One core validates to 564,
+so the second core costs about 40 MHz of headroom -- which is why
+`boards/pico2.cmake` hands applications 520 as its `turbo` profile and marks 564
+`extreme` as single-core only.
 
 The 570 MHz row is verified rather than inferred: the flash was read back and
 matched the build exactly, and the core was found in `isr_hardfault`.  That is the
