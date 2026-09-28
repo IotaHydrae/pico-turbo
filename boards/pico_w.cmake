@@ -6,6 +6,8 @@
 #   safe    — 240 MHz, stock voltage, DIV=4  (flash  60 MHz)
 #   turbo   — 360 MHz, 1.20 V,       DIV=4  (flash  90 MHz)
 #   extreme — 420 MHz, 1.30 V,       DIV=4  (flash 105 MHz)
+#   and above it: 440 MHz at 1.30 V with DIV 4 (110 MHz of flash clock) held for 30
+#   consecutive dual-core soak runs -- which is what raised _FLASH_MAX_KHZ below.
 #
 # Every number here was measured on a Pico W with CoreMark, single core, each
 # point written, read back and compared before it ran, and the voltages are the
@@ -35,16 +37,18 @@ if(NOT DEFINED _PLATFORM_MAX_KHZ)
     set(_PLATFORM_MAX_KHZ 420000)
 endif()
 
-# Measured: the ladder above ran with the flash clock following this ceiling
-# exactly -- ceil(clk/105) rounded up to even gives DIV 2 at 125 MHz and DIV 4
-# everywhere above 240, which is the divider each of those rows was run at.  105
-# MHz is the fastest this board has been *shown* to hold; the QSPI interface's own
-# limit is 133 MHz, and a divider is only interesting below that.
-# Overridable from the command line (-D_FLASH_MAX_KHZ=105000): probing where a board actually
+# Measured.  With this ceiling the derived divider is DIV 2 at 125 MHz and DIV 4
+# everywhere above 240 -- the divider every row above was actually run at, so the
+# rows do not change -- and at 440 MHz DIV 4 means 110 MHz of flash clock, which 30
+# consecutive dual-core soak runs held (every one validated, 0.0009% spread).  105
+# MHz was what the ladder had shown at 420 MHz; 110 is what the soak showed above
+# it, so 110 is what is claimed here.  The QSPI interface's own limit is 133 MHz,
+# and a divider is only interesting below that.
+# Overridable from the command line (-D_FLASH_MAX_KHZ=110000): probing where a board actually
 # gives up means asking for a clock above the ceiling, and that should not
 # require editing this file.
 if(NOT DEFINED _FLASH_MAX_KHZ)
-    set(_FLASH_MAX_KHZ 105000)
+    set(_FLASH_MAX_KHZ 110000)
 endif()
 set(_BOOT2_DEFAULT_DIV 2)
 # The RP2040's boot stage 2 refuses an odd divider outright
