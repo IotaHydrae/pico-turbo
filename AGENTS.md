@@ -42,6 +42,14 @@ cmake -S examples/tune -B build -DPICO_BOARD=pico2 \
 cmake --build build -j
 ```
 
+`-DPICO_BOARD=pico_w` **不带其它参数就是这块板的默认档**（board 文件默认 440 MHz/1.30 V/DIV 4，
+configure 时会打出来）；要原厂频率用 `-DPICO_TURBO_PROFILE=none`；自己给档位或给时钟都优先。
+这是目前唯一带默认档的 board 文件（理由：官方板实测过、且 440 MHz 已是 RP2040 稳压器的文档上限）。
+
+**分工**：找到极限和稳定性的活儿在 coremark 仓库（它是测试台），结果以 `boards/*.cmake`
+的形式回流到本仓库 —— 本仓库的 board 文件就是那些测量的落点。凡在那边测出的稳定配置，
+都要在这里有对应的档位/上限/默认值，否则应用拿不到它。
+
 整块板子的"一键体检"在 coremark 仓库：`coremark/tools/probe.py --board <板名>`——时钟阶梯、
 flash 分频阶梯、双核、soak 全跑一遍，产出报告和一份可用的 `boards/<板名>.cmake`（本仓库
 `boards/pico_w.cmake` 就是这么来的）。接上探针即可，不需要按键。
