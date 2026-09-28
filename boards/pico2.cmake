@@ -22,16 +22,17 @@
 #   300 MHz  1.20 V   845.41
 #   400 MHz  1.30 V  1127.21
 #   520 MHz  1.60 V  1465.38      and 2622.08 with two cores, 50 runs, all validated
-#   546 MHz  1.60 V  1538.64      546 with two cores hangs in core_stop_parallel
+#   546 MHz  1.60 V  1538.64      546 with two cores: passed once, hung once (marginal)
 #   552 MHz  1.60 V  1555.56
 #   558 MHz  1.60 V  1572.47
 #   564 MHz  1.60 V  1589.37      564 with two cores hard-faults before it prints
 #   570 MHz          does not run (verified: the flash matched the build and the
 #                    core was in isr_hardfault)
 #
-# So the chips stop in the same place on both boards -- 564 passes, 570 fails --
-# and the second core costs about 40 MHz of that: 520 MHz is where two cores were
-# soaked, 546 already fails.  Voltage is stored at 1.60 V, the highest this library
+# So the chips stop in the same place on both boards -- 564 passes, 570 fails -- and
+# the second core costs headroom: 520 MHz is where two cores were soaked, and 546 is
+# where two cores stop being reliable (one pass, one hang).  Voltage is stored at
+# 1.60 V, the highest this library
 # will ask for (see PICO_TURBO_MAX_VREG_VOLTAGE); dual-core 564 might live at 1.65 V,
 # which the hardware has and the policy does not, and no measurement here says so.
 
@@ -73,8 +74,8 @@ elseif(PICO_TURBO_PROFILE STREQUAL "turbo")
     set(PICO_TURBO_VREG_VOLTAGE VREG_VOLTAGE_1_60)
 elseif(PICO_TURBO_PROFILE STREQUAL "extreme")
     # Single core.  Two cores at this clock hard-fault before printing anything on
-    # the official board, and 546 with two cores hangs joining core 1 -- so an
-    # application that starts the second core wants "turbo".
+    # the official board, and 546 with two cores is already marginal (one pass, one
+    # hang) -- so an application that starts the second core wants "turbo".
     set(PICO_TURBO_SYS_CLK_KHZ 564000)
     set(PICO_TURBO_VREG_VOLTAGE VREG_VOLTAGE_1_60)
 elseif(NOT PICO_TURBO_PROFILE STREQUAL "")
