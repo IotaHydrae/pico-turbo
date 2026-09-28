@@ -32,6 +32,8 @@ int main(void) {
 
 That's it. If you don't set `PICO_TURBO_SYS_CLK_KHZ` (or leave it empty), the library is a no-op — your project compiles and runs at stock clocks with zero overhead.
 
+One exception, and the board file is where it lives: a board whose profile is known from measurement can name its own default, so `-DPICO_BOARD=pico_w` with nothing else applies that board's measured extreme (440 MHz at 1.30 V) and says so in the configure output. Ask for stock clocks with `-DPICO_TURBO_PROFILE=none`, or give a profile or a clock of your own — any of those wins.
+
 ## Auto-tuning
 
 Silicon is not uniform: how far a part clocks depends on the die, the board, the

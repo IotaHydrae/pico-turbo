@@ -32,6 +32,8 @@ int main(void) {
 
 如果不设置 `PICO_TURBO_SYS_CLK_KHZ`（或留空），该库为空操作 — 项目将以默认频率编译运行，零开销。
 
+有一个例外，而且它就写在 board 文件里：一块已经实测过的板子可以给自己的默认值，于是 `-DPICO_BOARD=pico_w` 不带其它参数时会采用这块板实测出的最高档（440 MHz @ 1.30 V），并在 configure 输出里说明。想要原厂频率就加 `-DPICO_TURBO_PROFILE=none`；自己给档位或给时钟，任何一个都优先于默认值。
+
 ## 自动探测（auto-tune）
 
 芯片体质不同：能跑到多少取决于晶圆、板子、flash 和温度，所以在一块 Pico 上稳定的频率，
