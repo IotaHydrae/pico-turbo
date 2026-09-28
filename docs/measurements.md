@@ -301,3 +301,13 @@ is well above what the RP2350 board above tolerates.
 - **A chip in lockup needs a reset before anything can be flashed into it**, and
   openocd's flash driver will say so in its own words ("failed to call reset core
   state").  That is a property of the state the chip is in, not of the tool.
+
+
+One cross-platform number falls out of having both chips measured the same way, and
+it is *derived* rather than measured: both platforms are linear in the clock to
+within 0.001% (RP2040 at 1.8914 iterations/sec per MHz, RP2350 at 2.8180), so an
+M33 does **1.490x** the work per clock that an M0+ does, and this board's best
+configuration -- 440 MHz at 1.30 V -- is worth an RP2350 at about **295 MHz**.  A
+Pico 2 at 564 MHz is doing work a Pico W could only match at ~840 MHz, twice past
+its regulator's limit.  The ladder those numbers come from is in the coremark
+repository's [RANKINGS.md](https://github.com/IotaHydrae/coremark/blob/main/RANKINGS.md).
