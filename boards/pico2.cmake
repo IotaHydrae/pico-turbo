@@ -47,11 +47,17 @@ endif()
 # at 315 MHz) the chip computed wrong answers and locked up; at 52 MHz the same
 # search climbed without a single hang.  The RP2350 runs XIP with the divider crt0
 # applies from boot2, so the flash clock scales with clk_sys and this number bounds
-# it.  60 MHz is also what the clone's flash part tolerates (it was solid at 57 and
-# wrong at 78.75), which is why the shared file carries it rather than the official
-# board's own tolerance of >=86.7 MHz.
+# it.
+#
+# 57 MHz is the clone's ceiling, not the official board's: the Luckfox board's flash
+# part was solid at 57 and wrong at 78.75, while this board's W25Q32JV took 86.7
+# without complaint.  The shared name gets the conservative number.  It is also why
+# this number is 57 and not 60: with odd dividers allowed on RP2350 (see above), a
+# 60 MHz ceiling derives DIV 9 at 520 MHz = 57.8 MHz, which is *above* what the clone
+# was shown to hold.  The even-only rule used to keep the flash clock just under the
+# ceiling by accident; with it off, the ceiling has to be the real limit.
 if(NOT DEFINED _FLASH_MAX_KHZ)
-    set(_FLASH_MAX_KHZ 60000)
+    set(_FLASH_MAX_KHZ 57000)
 endif()
 set(_BOOT2_DEFAULT_DIV 2)
 # An odd divider is legal here.  The RP2040's boot stage 2 refuses one
