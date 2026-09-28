@@ -104,7 +104,18 @@ flash 分频阶梯、双核、soak 全跑一遍，产出报告和一份可用的
    这条命令的 shell 一起杀掉（实测三次，其中一次还把 runner 的 `-u` 参数漏掉、旧 reader
    没被杀掉，新 reader 于是 `Resource busy` 拿不到设备）。用 `pkill -f "名字[.]py"` 这种
    正则技巧，或者直接按 PID 杀。
-12. **调试器会话必须"真复位 + 释放核"，两句都要** ✗。实测（A/B/C 对照，同一 ELF、同一
+11b. **探针没有复位线时，两个平台的 `reset run` 都是 vectreset** ✗：它只改 PC。RP2040 上
+   它让 SSI 留在非读模式（XIP 读出错位数据，应用 double fault）；RP2350 上它偶发地把
+   boot2→crt0 的第一次交接打成 **INVSTATE**（CFSR `0x01020001`，故障 PC 在 `platform_entry`），
+   而 flash 逐字节正确、`reset run` 还报成功 —— 现场看起来就是"这块板子在 150 MHz 都会挂"。
+   可靠路径是**经 bootrom 的真复位**：调试器擦空（芯片自己进 BOOTSEL：RP2040 `0003`、
+   RP2350 `000f`）→ `picotool load -v` 写入 → bootrom 状态下回读比对（比对前要 `resume`，
+   停住的核会把 bootrom 的 USB 带走）→ `picotool reboot` 真复位。`coremark/tools/probe.py`
+   就是按这条实现的。
+
+12. **（历史）调试器会话必须"真复位 + 释放核"，两句都要** ✗ —— 这条记着 A/B/C 对照的结果，
+    但"看门狗触发 + `reset run`"的实现已被纪律 11b 的 bootrom 复位路径取代（那个组合在
+    RP2350 上是竞态）。实测（A/B/C 对照，同一 ELF、同一
     板子，只改收尾三行）：
     - **只有 `halt` 没有 `reset run`** ⇒ 写完什么都不会跑（核被 debug 的 halt 咬住）✗ ——
       这是 probe 脚本第一版失败的直接原因。
@@ -115,10 +126,9 @@ flash 分频阶梯、双核、soak 全跑一遍，产出报告和一份可用的
       vectreset 修不回来**（RP2040 没有复位线时 `reset run` 只改 PC、不复位外设）。
       实测能救回来的是**真芯片复位**：擦空 → 芯片自己进 BOOTSEL（`2e8a:0003`）→ picotool
       写入+重启 ✓。快照差异见 `coremark/tools/probe.py` 的注释。
-    所以脚本的收尾是：清 `SCRATCH4` → 写看门狗 `CTRL` TRIGGER 位做真复位（RP2040
-    `0x40058000`、RP2350 `0x400D8000`，地址取自 SDK 的 `addressmap.h`）→ **`reset run`**。
-    （"看门狗这一句是否等价于擦空+picotool 那次真复位"，是从机制上推断的、尚未单独隔离验证；
-    已确证的是这套收尾在连续多个点上稳定工作。）
+    当时的收尾是"清 `SCRATCH4` → 写看门狗 `CTRL` TRIGGER → **`reset run`**"；**现在用的是
+    11b 那条**（擦空 → bootrom → picotool 写入 → 回读 → bootrom 真复位），因为看门狗触发
+    与随后的 `reset run` 在 RP2350 上是竞态。
 13. **调试器是定位工具，不要为了"纯 USB"而放弃它**：它直接给出卡在哪个函数（例如
    `core_list_find` = 应用其实在跑；`isr_hardfault` = 真的挂了；PC 在 bootrom = 镜像没起来）。
 
@@ -127,7 +137,7 @@ flash 分频阶梯、双核、soak 全跑一遍，产出报告和一份可用的
 | 板子 | CPU 上限 | flash |
 | --- | --- | --- |
 | 幸狐 Pico 2（RP2350A，Puya PY25Q32HB 4 MB） | 564 过、570 挂 | ≤57 MHz 稳、78.75 MHz 出错；上限未定位 |
-| 官方 Pico 2（RP2350A A2，W25Q32JV 4 MB） | 单核 564 过、570 挂（已核实）；**双核 520 过（50 次 soak），546 挂、564 hard fault** ⇒ 第二个核吃掉约 40 MHz | DIV 4（130 MHz）锁死；DIV 6（86.7）/8（65）/10（52）全部 validated ⇒ 上限在 86.7–130 MHz 之间 |
+| 官方 Pico 2（RP2350A A2，W25Q32JV 4 MB） | 单核 564 过、570 挂（已核实）；**双核 520 过（50 次 soak），546 一过一挂（边缘）、564 hard fault** | DIV 4（130 MHz）锁死；DIV 6（86.7）/8（65）/10（52）全部 validated ⇒ 上限在 86.7–130 MHz 之间 |
 | 合宙 RP2040 | 420 过、440 锁死 | 105 MHz（DIV 4）长期正常 |
 | 官方 Pico W（RP2040 B2） | **440 过（1.30 V；双核 30 次 soak 全 validated）；460 未测** | DIV 4 @440 = 110 MHz 撑住 30 次 soak；@420 = 105 MHz；DIV 2（210 MHz）如预期 hang（越过接口极限） |
 

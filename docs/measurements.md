@@ -80,12 +80,12 @@ reports `Correct operation validated`.
 | 564 MHz | 1589.37 | 1.085x |
 | 570 MHz | does not run | -- |
 
-With both cores the same board stops earlier: 520 MHz ran 50 consecutive dual-core
-runs (above), 546 MHz hangs joining core 1 (PC in `core_stop_parallel`) and 564 MHz
-with two contexts hard-faults before printing anything.  One core validates to 564,
-so the second core costs about 40 MHz of headroom -- which is why
-`boards/pico2.cmake` hands applications 520 as its `turbo` profile and marks 564
-`extreme` as single-core only.
+With both cores the same board stops earlier, and the honest number is the repeated
+one: 520 MHz ran 50 consecutive dual-core runs (above), 546 MHz with two cores has
+passed once (2748.29 iterations/sec) and hung once (PC in `core_stop_parallel`), and
+564 MHz with two contexts hard-faults before printing anything.  One core validates to
+564; two cores stop being reliable at 546.  That is why `boards/pico2.cmake` hands
+applications 520 as its `turbo` profile and marks 564 `extreme` as single-core only.
 
 The 570 MHz row is verified rather than inferred: the flash was read back and
 matched the build exactly, and the core was found in `isr_hardfault`.  That is the
@@ -213,6 +213,14 @@ Checked against this board rather than against itself: a build asking only for
 flash clock, came up at 440000 kHz measured with vreg sel 15, and validated 832.21
 iterations/sec -- the number the point was measured at with every parameter passed
 explicitly.
+
+One caution the RP2350 side shows and this board does not: there, the flash divider
+is not a free variable.  520 MHz on an official Pico 2 read 2622.08 iterations/sec
+with a 0.0002% spread at DIV 8 (65 MHz of flash clock) and 2611.46 with 0.0626% at
+DIV 10 (52 MHz) -- 0.4% slower and far less steady, because the cache misses it does
+take cost more.  On this board, 440 MHz at DIV 4 (110 MHz) and DIV 6 (73 MHz) scored
+the same 832.21, so the working set really does fit.  Either way, a row without its
+divider is not reproducible.
 
 Soaked at 420 MHz with both cores, 20160 iterations each and a bootrom reboot
 between runs: 27 consecutive complete runs, every one validated, no errors, mean
