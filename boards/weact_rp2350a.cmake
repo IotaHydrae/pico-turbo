@@ -20,17 +20,42 @@
 # DIV 9 on the Pico 2 could not be configured at all.
 
 # The highest frequency this board validated, at the stock 1.60 V top of the
-# library's table: 520 MHz ran single core, ran with both, and ran ten times in a
-# row rebooting through the bootrom each time (10 of 10 validated, spread 0.0041%).
-# 546 MHz is where it stops, and it stops hard -- the program counter was in
-# isr_hardfault and the application never printed its first line.
+# library's table: 520 MHz ran single core, repeatedly.  546 MHz is where it stops,
+# and it stops hard -- the program counter was in isr_hardfault and the application
+# never printed its first line.
 #
-# The official Pico 2 and the Luckfox board both reach 564 MHz, so this is the board
+# The official Pico 2 and the Luckfox board both reach 564 MHz, so 520 is this board
 # and not the chip -- which is the whole reason this name exists instead of sharing
-# `pico2`.  It is not the compiler either: 546 MHz hard-faults at program counter
-# 0x1000011c under GCC 13.2.1 *and* under GCC 16.2.0, with the flash verified byte for
-# byte both times.  (The compiler is worth 1.053x on the *score* -- see section 8 of
-# the coremark repository's RANKINGS.md -- but it is not what stops this board.)
+# `pico2`.  It is not the compiler: 546 MHz hard-faults at program counter 0x1000011c
+# under GCC 13.2.1 *and* under GCC 16.2.0, with the flash verified byte for byte both
+# times.
+#
+# **Dual core at 520 MHz is a different answer, and it is "marginal".**  One ten-run
+# soak of it passed (10 of 10, spread 0.0041%), measured under GCC 13.2.1; under GCC
+# 16.2.0 the same soak has not once run to the end -- four attempts came back with 6,
+# 6, 7 and 5 of 10 runs.  The debugger read where two of them stopped, and they are
+# two different failures: in the 7-run one the program counter was in
+# `core_stop_parallel`, which is core 0 spinning in `while (!s_core1_done)` waiting
+# for core 1 with **no timeout** and CFSR zero (core 1 stopped making progress); in
+# the 5-run one the counter and the scores both said five while a sixth banner sat in
+# the log, and the program counter was `0xeffffffe` with CFSR `0x8200` -- a precise
+# bus fault, i.e. a jump into nothing rather than a wait.  Both are what a supply that
+# is a little too weak looks like under the heaviest load available, and the official
+# Pico 2 fails the same way `joining core 1` at 546 MHz, one step below its own limit.
+# (The compiler is worth 1.053x on the *score* -- see section 8 of the coremark
+# repository's RANKINGS.md -- and neither a hang in an inter-core handshake nor a bus
+# fault is a score.)
+#
+# It cannot be bought back with voltage either: 1.60 V is already the top of what
+# this library allows (`PICO_TURBO_MAX_VREG_VOLTAGE`), and asking for more is clamped
+# rather than refused -- measured, an out-of-envelope 1.65 V request at 520 MHz left
+# the application running at the stock 150 MHz with the divider applied (flash
+# 15 MHz), which the probe's "clock landed where asked" check is what caught.
+#
+# So: 520 MHz single core is measured, 520 MHz dual core is a coin flip, and where
+# the dual-core ceiling actually is between 400 and 520 MHz has not been searched.
+# That is the open measurement for this board; `--points 480000 --mt 2 --soak 10`
+# places it.
 #
 # Overridable from the command line (-D_PLATFORM_MAX_KHZ=546000): probing where a
 # board actually gives up means asking for a clock above the ceiling, and that
