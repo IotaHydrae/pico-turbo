@@ -15,9 +15,14 @@ scores 5.30% higher at the same clock and voltage -- a plain multiplier, the sam
 (both sides of a comparison came from one compiler, and the 1.490x an M33 does over an
 M0+ was measured across two boards under one compiler), while absolute per-MHz constants
 are that compiler's, not the chip's.  See the coremark repository's
-[RANKINGS.md](https://github.com/IotaHydrae/coremark/blob/main/RANKINGS.md), section 8;
-one RP2040 point under the older compiler is the measurement that would say whether the
-M0+ moves by the same 5.30%.
+[RANKINGS.md](https://github.com/IotaHydrae/coremark/blob/main/RANKINGS.md), section 8,
+and its [TOOLCHAINS.md](https://github.com/IotaHydrae/coremark/blob/main/TOOLCHAINS.md),
+which measures six GCC releases on one board: 13.2.0 is the fastest of them at 1543.05
+iterations/sec and 2.9674 per MHz, the two 16.x releases are identical to each other and
+5.30% behind it, and the multiplier is the same at 150 MHz as at 520.  Note also that the
+same ladder puts the *dual-core* factor between 1.7745 and 1.8319, so a dual-core number
+is only comparable inside one compiler.  One RP2040 point under GCC 13.2.0 is the
+measurement that would say whether the M0+ moves by the same 5.30%.
 
 **Compile options are not the lever, and everything here assumes the default set.**  The
 obvious next guess -- that the options were tuned for the older compiler -- was measured
