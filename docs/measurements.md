@@ -19,6 +19,21 @@ are that compiler's, not the chip's.  See the coremark repository's
 one RP2040 point under the older compiler is the measurement that would say whether the
 M0+ moves by the same 5.30%.
 
+**Compile options are not the lever, and everything here assumes the default set.**  The
+obvious next guess -- that the options were tuned for the older compiler -- was measured
+too, on one RP2350A board, one core, one divider, at two clocks: `-O2` costs 0.41% and
+`-Os` costs 17.9%, and each of them costs **exactly the same percentage at 150 MHz as at
+520 MHz** (to 0.0001 of a point).  That is the part worth keeping: if any of the cost
+were instruction fetch -- flash latency, cache, code size -- the 48% smaller `-Os` image
+would have had to do better at the higher clock.  It does not, so a CoreMark score on
+this part is the number of instructions executed per unit of work, and nothing else.
+`-fno-unroll-loops` and `-fno-ipa-cp-clone` produce byte-identical code to `-O3` here,
+and `-flto` does not link against this SDK's linker script (`dangerous relocation`) at
+all.  The SDK never set an optimization level of its own -- `-O3` is CMake's own
+`Release` default, and the SDK's only compile flags are `-mcpu/-mthumb/-march/
+-mfloat-abi/-mcmse` -- so there is nothing to recover by asking for a different flag
+set, and `-O3` is what every clock and voltage in this file was measured under.
+
 ## The boards
 
 | Board | Chip | Flash | Notes |
@@ -27,6 +42,7 @@ M0+ moves by the same 5.30%.
 | AirMech RP2040 (the PUD panel host) | RP2040 | not probed | the board the RP2040 defaults came from |
 | Official Pico 2 | RP2350A rev 2 (A2) | Winbond W25Q32FV/JV, 4 MB QSPI (measured: `id = 0x1640ef`, 4096 KiB) | measured: see below |
 | Official Pico W | RP2040 B2 | Winbond W25Q16JV, 2 MB QSPI (measured: `id = 0x1540ef`, 2048 KiB) | measured: see below |
+| WeAct Studio RP2350A (V1.0) | RP2350A rev 2 | Winbond W25Q32FV/JV, 4 MB QSPI (measured: `id = 0x1640ef`, 4096 KiB) | same flash part as the Pico 2; its own board file, because its ceiling is lower and its dual-core margin is thinner (see below) |
 
 ## Luckfox Pico 2 (RP2350A)
 
@@ -160,6 +176,47 @@ conservative for an official Pico 2 and necessary for a clone, and clones share
 the board name.  This number cannot be keyed on the board name; measuring the
 divider at startup -- the self-check already reads a region of the image back, so
 the mechanism is there -- is the fix worth having.
+
+## WeAct RP2350A (RP2350A rev 2, 4 MB flash)
+
+The third RP2350A board, and the one that separates a board's **clock** ceiling from its
+**load** ceiling -- which are not the same number and were briefly mistaken for one here.
+
+| | |
+|---|---|
+| 520 MHz, one core, 1.60 V | validates, repeatedly, under two compilers |
+| 546 MHz, one core | hard fault, PC `0x1000011c`, flash verified byte for byte both times |
+| 520 MHz, two cores, one run | validates: 2613.91 iterations/sec |
+| 520 MHz, two cores, ten-run soaks | **6, 6, 7 and 5 of 10 runs** under GCC 16.2.0, against 10 of 10 once under GCC 13.2.1 |
+
+The soak is the finding, and what made it usable was asking the *chip* rather than
+reading the console.  Two of the four attempts were diagnosed, and they are two different
+failures:
+
+* the 7-of-10 one was spinning in `core_stop_parallel`, which is this port's join -- core 0
+  waiting on core 1 in `while (!s_core1_done)` with **no timeout** -- CFSR zero, no fault
+  at all: the run did not fail, it stopped waiting;
+* the 5-of-10 one left the program counter at `0xeffffffe` with CFSR `0x8200`
+  (`PRECISERR` with `BFARVALID`), a precise bus fault on an address that is not memory:
+  that one jumped into nothing.
+
+Both are the heaviest load this board can be given, and the official Pico 2 fails the same
+way joining core 1 at 546 MHz, one step below its own ceiling, while the Luckfox board (a
+2 A buck-boost, versus this board's USB supply) does not fail at all at 520.  That pattern
+is a supply, not a clock and not a compiler -- the compiler is worth 1.053x on the score
+and cannot make an inter-core handshake hang.
+
+It cannot be bought back with voltage either, and that is worth knowing before trying:
+1.60 V is already the top of the table this library allows
+(`PICO_TURBO_MAX_VREG_VOLTAGE`), and an out-of-envelope request is **clamped rather than
+refused**.  Measured: asking for 1.65 V at 520 MHz left the application running at the
+stock 150 MHz with the divider applied (flash 15 MHz) -- the probe's "clock landed where
+asked" check is what caught it, and nothing about the console would have said so
+otherwise.
+
+So `boards/weact_rp2350a.cmake` keeps 520 MHz as the clock ceiling (that is measured
+single core) while its `extreme` profile at 520 MHz is a coin flip in dual core.  Where
+the dual-core ceiling is between 400 and 520 MHz is the open measurement on this board.
 
 ## Pico W (RP2040 B2, 2 MB flash)
 
