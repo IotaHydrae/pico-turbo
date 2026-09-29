@@ -55,8 +55,12 @@ if(NOT DEFINED _FLASH_MAX_KHZ)
 endif()
 # What the SDK's own boot stage 2 would use before this library overrides it: a
 # platform constant, not something measured on this board.
-set(_BOOT2_DEFAULT_DIV 4)
-set(_FLASH_REQUIRES_EVEN ON)
+set(_BOOT2_DEFAULT_DIV 2)
+# Not required here: the RP2350's w25q080 boot stage 2 checks a maximum and not
+# parity (the RP2040's does, and its board files say so).  Measured: with this set, a
+# DIV 9 build of this board was refused at configure time -- the probe's flash ladder
+# reported "build failed" for a divider the hardware takes.
+set(_FLASH_REQUIRES_EVEN OFF)
 
 if(PICO_TURBO_PROFILE STREQUAL "safe")
     set(PICO_TURBO_SYS_CLK_KHZ 300000)
