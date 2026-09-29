@@ -8,6 +8,17 @@ measurement rather than a promise about any other board.
 CoreMark results, which is where the stability claims come from, are in the
 [CoreMark port's own notes](https://github.com/IotaHydrae/coremark/blob/main/rpi-pico/MEASUREMENTS.md).
 
+**The toolchain is part of a CoreMark number.**  Every result in this file was built by
+`arm-none-eabi-gcc` GCC 16.2.0, and the identical source built by Debian's GCC 13.2.1
+scores 5.30% higher at the same clock and voltage -- a plain multiplier, the same at
+150 MHz as at 520 and the same with two cores as with one.  Ratios therefore survive it
+(both sides of a comparison came from one compiler, and the 1.490x an M33 does over an
+M0+ was measured across two boards under one compiler), while absolute per-MHz constants
+are that compiler's, not the chip's.  See the coremark repository's
+[RANKINGS.md](https://github.com/IotaHydrae/coremark/blob/main/RANKINGS.md), section 8;
+one RP2040 point under the older compiler is the measurement that would say whether the
+M0+ moves by the same 5.30%.
+
 ## The boards
 
 | Board | Chip | Flash | Notes |
