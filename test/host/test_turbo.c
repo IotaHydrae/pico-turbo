@@ -49,6 +49,23 @@ static void check_eq_u32(uint32_t got, uint32_t want, const char *what)
 	}
 }
 
+/*: Announce a test and the oracle its PASS/FAIL rests on.
+ *
+ * Every test here compares the library's behaviour against a rule that exists
+ * independently of this run: the workspace testing convention requires the type,
+ * the source and the expected value to be visible, so the log is enough to judge
+ * whether the expectation was justified.  There is no test whose expected value
+ * came from a previous run. */
+static void test_begin(const char *name, const char *what, const char *oracle_type,
+		       const char *source, const char *expected)
+{
+	printf("[TEST] %s\n", name);
+	printf("  %s\n", what);
+	printf("  [ORACLE] %s\n", oracle_type);
+	printf("  [SOURCE] %s\n", source);
+	printf("  [EXPECTED] %s\n", expected);
+}
+
 /*: The regulator setting that was in effect when `needle` was called, or -1. */
 static int voltage_before(const char *needle)
 {
@@ -91,7 +108,12 @@ static void test_lowering_takes_the_clock_down_first(void)
 	int clock_at, voltage_at;
 	pico_turbo_config_t low = { .khz = 130000u, .vreg_sel = 11u };
 
-	printf("lowering: the clock comes down before the supply does\n");
+	test_begin("test_lowering_takes_the_clock_down_first",
+	           "lowering: the clock comes down before the supply does",
+	           "INVARIANT",
+	           "docs/design.md (the safe ordering; reversed = measured lockup)",
+	           "step down: set_sys_clock_khz before vreg_set_voltage; "
+	           "step up: the reverse");
 	reset_chip();
 	test_clock_set_hz(clk_sys, 420000000u);
 	vreg_set_voltage(VREG_VOLTAGE_1_30);
@@ -135,7 +157,12 @@ static void test_apply_refuses_what_is_not_a_configuration(void)
 	pico_turbo_config_t zero = { .khz = 0u, .vreg_sel = 11u };
 	pico_turbo_config_t too_high = { .khz = 500000u, .vreg_sel = 15u };
 
-	printf("a table entry that is not a configuration is refused, not applied\n");
+	test_begin("test_apply_refuses_what_is_not_a_configuration",
+	           "a table entry that is not a configuration is refused, not applied",
+	           "INVARIANT",
+	           "pico_turbo.c config_valid(); docs/design.md",
+	           "khz == 0, khz > PICO_TURBO_MAX_CLK_KHZ and vreg_sel > policy "
+	           "ceiling are all refused; no hardware write happens");
 	reset_chip();
 
 	check(!pico_turbo_apply(&junk), "a garbage regulator setting is refused");
@@ -152,7 +179,12 @@ static void test_tiers_are_the_best_at_each_voltage(void)
 	static pico_turbo_config_t tiers[PICO_TURBO_TIERS_MAX];
 	uint32_t count;
 
-	printf("a trace reduces to the fastest stable frequency per voltage\n");
+	test_begin("test_tiers_are_the_best_at_each_voltage",
+	           "a trace reduces to the fastest stable frequency per voltage",
+	           "SPEC",
+	           "include/pico_turbo.h: pico_turbo_tiers_from_trace() contract",
+	           "one entry per voltage that had a stable frequency, the highest "
+	           "frequency at it, oldest voltage first; FAILED and SKIPPED are dropped");
 	reset_chip();
 
 	/* Climb order, as a search produces it: two steps at sel 11, then a step up to
@@ -181,7 +213,12 @@ static void test_selection_refuses_a_bad_tier(void)
 		{ 235479u, 13440u }, /* what a corrupt record looks like */
 	};
 
-	printf("selecting from a table with a corrupt entry changes nothing\n");
+	test_begin("test_selection_refuses_a_bad_tier",
+	           "selecting from a table with a corrupt entry changes nothing",
+	           "INVARIANT",
+	           "pico_turbo.c config_valid() via pico_turbo_select(); docs/design.md",
+	           "an out-of-range vreg_sel tier is refused and the regulator is "
+	           "not touched");
 	reset_chip();
 	pico_turbo_use_table(table, 1);
 
@@ -201,7 +238,12 @@ static void test_a_search_stops_at_what_the_pll_can_do(void)
 	const pico_turbo_step_t *steps = NULL;
 	uint32_t n;
 
-	printf("a search climbs to the ceiling and stays inside it\n");
+	test_begin("test_a_search_stops_at_what_the_pll_can_do",
+	           "a search climbs to the ceiling and stays inside it",
+	           "SPEC",
+	           "pico_turbo_tune.c climb loop; SDK check_sys_clock_khz() semantics",
+	           "the result is in [base_khz, the highest PLL point], a trace exists, "
+	           "and the watchdog is not left armed");
 	reset_chip();
 	test_pll_set_max_khz(180000u);
 
@@ -227,7 +269,13 @@ static void test_a_hang_is_retried_with_more_voltage(void)
 	const pico_turbo_step_t *steps = NULL;
 	uint32_t n;
 
-	printf("a hang is retried one voltage step up, not given up on\n");
+	test_begin("test_a_hang_is_retried_with_more_voltage",
+	           "a hang is retried one voltage step up, not given up on",
+	           "SPEC",
+	           "include/pico_turbo.h pico_turbo_autotune() contract; "
+	           "pico_turbo_tune.c inflight-scratch handling",
+	           "the hung candidate is recorded at its khz/sel, retried at the same "
+	           "khz with at least one more voltage step, and the climb continues");
 	reset_chip();
 
 	/* What the boot after a hang finds: a candidate was on trial at 200 MHz on
@@ -272,7 +320,13 @@ static void test_a_wall_at_the_voltage_ceiling_stops_the_climb(void)
 	pico_turbo_config_t config;
 	uint32_t n;
 
-	printf("a wall at the top voltage is a wall: the climb stops\n");
+	test_begin("test_a_wall_at_the_voltage_ceiling_stops_the_climb",
+	           "a wall at the top voltage is a wall: the climb stops",
+	           "SPEC",
+	           "pico_turbo_tune.c: the hung_sel >= max_vreg_sel branch",
+	           "the hang is the only trace entry, the frequency that hung at the "
+	           "ceiling is not retried, and the run settles at the last thing "
+	           "that passed");
 	reset_chip();
 
 	/* Hung at 390 MHz with the regulator already at the ceiling. */
@@ -301,7 +355,12 @@ static void test_the_hang_budget_is_respected(void)
 	};
 	pico_turbo_config_t config;
 
-	printf("the caller's budget for resets is what decides when to stop\n");
+	test_begin("test_the_hang_budget_is_respected",
+	           "the caller's budget for resets is what decides when to stop",
+	           "SPEC",
+	           "include/pico_turbo.h: pico_turbo_autotune_t.max_hangs contract",
+	           "with max_hangs already spent, the hung frequency is not retried and "
+	           "the best configuration that passed is left running");
 	reset_chip();
 
 	watchdog_hw->scratch[0] = 0x7074756eu;
@@ -336,7 +395,11 @@ int main(void)
 	printf("\n");
 	test_a_search_stops_at_what_the_pll_can_do();
 
-	printf("\n%u checks, %u failed\n", checks, failures);
+	/* Exit codes follow the workspace convention: 0 = PASS, 1 = FAIL.  The
+	 * other codes need a usage or environment surface this offline suite does
+	 * not have, so they are not invented here. */
+	printf("\n[RESULT] %s -- %u checks, %u failed\n",
+	       failures == 0 ? "PASS" : "FAIL", checks, failures);
 
 	return failures == 0 ? 0 : 1;
 }
