@@ -4,3 +4,7 @@ build_*/
 .cache/
 build-*/
 /test/host/test_turbo
+
+# Python bytecode (tools/turbocfg.py, test/host/test_turbocfg.py)
+__pycache__/
+*.py[cod]
