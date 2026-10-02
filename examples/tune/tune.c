@@ -86,7 +86,7 @@
 #define TUNE_VERIFY_MS 200u
 #endif
 
-/*: Leave the chip at the fastest verified tier instead of the safmost one.
+/*: Leave the chip at the fastest verified tier instead of the safest one.
  *: Off by default: the file is the result of this example, and a chip left at
  *: its highest tier is the harder one to reflash. */
 #ifndef TUNE_LEAVE_AT_MAX
